@@ -81,6 +81,49 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.tiktokStatus) updateTikTokStatus(data.tiktokStatus);
   });
 
+  // Offline / GitHub Pages fallback for Admin Panel
+  setTimeout(() => {
+    if (!stateSnapshot) {
+      stateSnapshot = {
+        roundNumber: 1,
+        state: 'WAITING_FOR_PLAYERS',
+        chosenPlayer: null,
+        targetPlayer: null,
+        winner: null,
+        settings: {
+          joinKeyword: 'تم',
+          isJoinOpen: true,
+          maxPlayers: 50,
+          timers: { targetSelectDuration: 20, defenseDuration: 30 },
+          timeoutBehavior: 'eliminate_target',
+          gifts: {
+            defense: { giftName: 'وردة', giftId: 'rose', minCoins: 1 },
+            shield: { giftName: 'نظارات شمسية', giftId: 'sunglasses', minCoins: 199 },
+            rejoin: { giftName: 'قلب الحب', giftId: 'heart', minCoins: 49 },
+            finalRound: { giftName: 'صاروخ', giftId: 'rocket', minCoins: 4888 }
+          },
+          wheelConfig: {
+            theme: 'neon',
+            spinDuration: 5000,
+            showPlayerAvatars: true,
+            showPlayerNames: true
+          }
+        }
+      };
+      allPlayers = [
+        { id: '1', playerNumber: 1, nickname: 'محمد 👑', uniqueId: 'mohammed', status: 'active', hasShield: false, coins: 0, killsCount: 0, profilePictureUrl: 'assets/gifts/lion.png' },
+        { id: '2', playerNumber: 2, nickname: 'سارة ✨', uniqueId: 'sara', status: 'immune', hasShield: true, coins: 200, killsCount: 0, profilePictureUrl: 'assets/gifts/heart.png' },
+        { id: '3', playerNumber: 3, nickname: 'أحمد ⚡', uniqueId: 'ahmed', status: 'active', hasShield: false, coins: 50, killsCount: 1, profilePictureUrl: 'assets/gifts/cap.png' },
+        { id: '4', playerNumber: 4, nickname: 'خالد 🚀', uniqueId: 'khaled', status: 'active', hasShield: false, coins: 0, killsCount: 0, profilePictureUrl: 'assets/gifts/rocket.png' }
+      ];
+      settings = stateSnapshot.settings;
+      updateUI();
+      if (tiktokStatusText) {
+        tiktokStatusText.innerHTML = '<span style="color: #00f2fe;">🌐 وضع المعاينة (Demo Mode)</span>';
+      }
+    }
+  }, 400);
+
   socket.on('state_updated', (snapshot) => {
     stateSnapshot = snapshot;
     settings = snapshot.settings;

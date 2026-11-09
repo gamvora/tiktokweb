@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <defs>
+    <linearGradient id="diamondTop" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e3f2fd"/>
+      <stop offset="50%" stop-color="#90caf9"/>
+      <stop offset="100%" stop-color="#42a5f5"/>
+    </linearGradient>
+    <linearGradient id="diamondLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#64b5f6"/>
+      <stop offset="100%" stop-color="#1565c0"/>
+    </linearGradient>
+    <linearGradient id="diamondRight" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#90caf9"/>
+      <stop offset="100%" stop-color="#1e88e5"/>
+    </linearGradient>
+    <linearGradient id="diamondCenter" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#bbdefb"/>
+      <stop offset="100%" stop-color="#1976d2"/>
+    </linearGradient>
+  </defs>
+  <g filter="drop-shadow(0px 2px 6px rgba(21,101,192,0.4))">
+    <!-- Top facets -->
+    <path d="M40 8 L60 28 L40 28Z" fill="url(#diamondTop)"/>
+    <path d="M40 8 L20 28 L40 28Z" fill="#bbdefb"/>
+    <path d="M8 28 L20 28 L40 8Z" fill="#90caf9" opacity="0.8"/>
+    <path d="M72 28 L60 28 L40 8Z" fill="url(#diamondTop)" opacity="0.9"/>
+    <!-- Crown top bar -->
+    <path d="M8 28 L72 28 L40 72Z" fill="url(#diamondCenter)"/>
+    <!-- Left facet -->
+    <path d="M8 28 L40 28 L40 72Z" fill="url(#diamondLeft)" opacity="0.7"/>
+    <!-- Right facet -->
+    <path d="M72 28 L40 28 L40 72Z" fill="url(#diamondRight)" opacity="0.7"/>
+    <!-- Inner facet lines -->
+    <path d="M20 28 L40 72" stroke="rgba(255,255,255,0.3)" stroke-width="0.5" fill="none"/>
+    <path d="M60 28 L40 72" stroke="rgba(255,255,255,0.3)" stroke-width="0.5" fill="none"/>
+    <path d="M8 28 L72 28" stroke="rgba(255,255,255,0.4)" stroke-width="1" fill="none"/>
+    <!-- Sparkle -->
+    <path d="M30 20 L31 16 L32 20 L36 21 L32 22 L31 26 L30 22 L26 21Z" fill="white" opacity="0.7"/>
+    <circle cx="55" cy="22" r="1.5" fill="white" opacity="0.5"/>
+  </g>
+</svg>

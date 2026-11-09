@@ -3,67 +3,594 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="0; url=public/index.html">
-  <title>🎡 روليت تيك توك لايف</title>
-  <script>
-    // Immediate redirect to overlay game screen
-    window.location.replace("public/index.html");
-  </script>
-  <style>
-    body {
-      background: #0b0d19;
-      color: #fff;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      text-align: center;
-      padding: 20px;
-    }
-    .card {
-      background: #141729;
-      border: 1px solid #232742;
-      border-radius: 16px;
-      padding: 30px;
-      max-width: 500px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    }
-    h1 {
-      color: #fe2c55;
-      margin-bottom: 10px;
-    }
-    a.btn {
-      display: inline-block;
-      margin: 10px;
-      padding: 12px 24px;
-      background: linear-gradient(45deg, #fe2c55, #ff0050);
-      color: #fff;
-      text-decoration: none;
-      border-radius: 30px;
-      font-weight: bold;
-      transition: transform 0.2s;
-    }
-    a.btn-sec {
-      background: #25f4ee;
-      color: #000;
-    }
-    a.btn:hover {
-      transform: scale(1.05);
-    }
-  </style>
+  <title>🎡 روليت تيك توك لايف - شاشة العرض والبث المباشر</title>
+  <link rel="stylesheet" href="css/overlay.css">
 </head>
 <body>
-  <div class="card">
-    <div style="font-size: 60px; margin-bottom: 10px;">🎡</div>
-    <h1>روليت تيك توك لايف</h1>
-    <p>جاري تحويلك إلى شاشة اللعبة والبث المباشر...</p>
-    <div style="margin-top: 20px;">
-      <a href="public/index.html" class="btn">📺 فتح شاشة البث (Overlay)</a>
-      <a href="public/admin.html" class="btn btn-sec">🎛️ لوحة تحكم المدير</a>
+  <div class="broadcast-wrapper">
+    <!-- Header Bar -->
+    <header class="broadcast-header">
+      <div class="brand-section">
+        <span class="brand-logo">🎡</span>
+        <h1 class="brand-title">روليت تيك توك لايف</h1>
+      </div>
+
+      <div class="game-badges">
+        <div id="roundBadge" class="badge badge-round">الجولة #1</div>
+        <div id="joinBadge" class="badge badge-join">
+          <span class="pulse-dot"></span> الانضمام مفتوح: اكتب [تم]
+        </div>
+        <div id="shieldGiftBadge" class="badge badge-shield" style="display:none;">
+          <img id="shieldGiftBadgeImg" src="" style="width:22px;height:22px;vertical-align:middle;margin-left:6px;" alt="">
+          <span id="shieldGiftBadgeText">حصانة: </span>
+        </div>
+        <div id="tiktokBadge" class="badge badge-tiktok">
+          تيك توك: غير متصل
+        </div>
+      </div>
+
+      <!-- Quick Control Buttons -->
+      <div class="header-controls">
+        <button id="btnToggleSound" class="header-btn" title="كتم / تشغيل المؤثرات الصوتية">🔊</button>
+        <button id="btnOpenAdminDrawer" class="header-btn btn-admin-gear" title="فتح لوحة التحكم والإعدادات">
+          <span>⚙️</span>
+          <span>الإعدادات والربط</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Stage Grid -->
+    <main class="main-stage">
+      <!-- Right Side: Active Players -->
+      <aside class="side-panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>🛡️ اللاعبون النشطون</span>
+          </div>
+          <span id="activeCount" class="panel-count">0</span>
+        </div>
+        <div id="activePlayersList" class="player-list">
+          <!-- Dynamic Active Player Cards -->
+        </div>
+      </aside>
+
+      <!-- Center Arena: Roulette Wheel + Prominent Spin Button -->
+      <section class="center-arena">
+        <!-- Prominent Join Instructions Card Before Game Starts -->
+        <div id="joinInstructionsCard" class="join-instructions-card">
+          <div class="join-card-icon">📢</div>
+          <div class="join-card-body">
+            <div class="join-card-headline">طريقة الدخول والمشاركة في الروليت:</div>
+            <div class="join-card-action">
+              اكتب كلمة <span id="joinKeywordHighlight" class="join-kw-badge">تم</span> في شات البث الآن!
+            </div>
+          </div>
+          <div class="join-card-subtext">
+            <span>✨ تدخل المنافسة وتظهر صورتك واسمك ورقمك على العجلة تلقائياً</span>
+          </div>
+        </div>
+
+        <div class="wheel-container">
+          <canvas id="rouletteCanvas" width="600" height="600"></canvas>
+        </div>
+
+        <!-- Prominent Spin Button directly below Roulette Wheel -->
+        <div class="wheel-actions">
+          <button id="btnMainSpinRoulette" class="main-spin-button">
+            <span class="spin-icon">🎡</span>
+            <span class="spin-text">تدوير الروليت الآن (Start Roulette)</span>
+            <span class="spin-glow"></span>
+          </button>
+        </div>
+
+        <div class="action-banner">
+          <span>📢</span>
+          <span id="actionBannerText">في انتظار انضمام اللاعبين وبدء الجولة...</span>
+        </div>
+      </section>
+
+      <!-- Left Side: Eliminated Players & Gifts Guide Legend -->
+      <aside class="side-panel left-stage-panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>☠️ قائمة المستبعدين</span>
+          </div>
+          <span id="eliminatedCount" class="panel-count" style="background: rgba(239, 68, 68, 0.25); color: #f87171;">0</span>
+        </div>
+        <div id="eliminatedPlayersList" class="player-list eliminated-scroll-list">
+          <!-- Eliminated Players List -->
+        </div>
+
+        <!-- ★ مربع دليل الهدايا والميزات على الجانب بشكل واضح ★ -->
+        <div id="giftsLegendBox" class="gifts-legend-box">
+          <div class="legend-header">
+            <span class="legend-header-icon">🎁</span>
+            <span class="legend-header-title">دليل هدايا وميزات اللعبة</span>
+          </div>
+          <div class="legend-items">
+            <!-- 1. Defense -->
+            <div class="legend-item" id="legendDefense">
+              <img id="legendDefImg" class="legend-gift-img" src="assets/gifts/rose.png" alt="">
+              <div class="legend-info">
+                <div class="legend-title">🛡️ الدفاع عن النفس</div>
+                <div id="legendDefText" class="legend-desc">وردة (1 عملة) لإلغاء الإقصاء</div>
+              </div>
+            </div>
+
+            <!-- 2. Shield -->
+            <div class="legend-item" id="legendShield">
+              <img id="legendShieldImg" class="legend-gift-img" src="assets/gifts/sunglasses.png" alt="">
+              <div class="legend-info">
+                <div class="legend-title">🕶️ منح درع الحصانة</div>
+                <div id="legendShieldText" class="legend-desc">نظارات (30 عملة) حماية من الاستهداف</div>
+              </div>
+            </div>
+
+            <!-- 3. Rejoin -->
+            <div class="legend-item" id="legendRejoin">
+              <img id="legendRejoinImg" class="legend-gift-img" src="assets/gifts/heart.png" alt="">
+              <div class="legend-info">
+                <div class="legend-title">🔄 الرجوع بعد الإقصاء</div>
+                <div id="legendRejoinText" class="legend-desc">قلب الحب (5 عملات) للعودة للروليت</div>
+              </div>
+            </div>
+
+            <!-- 4. Final / Win -->
+            <div class="legend-item" id="legendFinal">
+              <img id="legendFinalImg" class="legend-gift-img" src="assets/gifts/rocket.png" alt="">
+              <div class="legend-info">
+                <div class="legend-title">🚀 حسم الجولة والفوز</div>
+                <div id="legendFinalText" class="legend-desc">صاروخ (100 عملة) حسم النتيجة فوراً</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- ============================================================
+         Modals & Confrontation Overlays
+         ============================================================ -->
+
+    <!-- Turn Modal: Wheel Landed on Player -->
+    <div id="turnModal" class="overlay-modal">
+      <div class="modal-content">
+        <div class="turn-avatar-wrap">
+          <img id="turnAvatar" class="turn-avatar" src="" alt="">
+          <div id="turnPlayerNum" class="turn-num">#1</div>
+        </div>
+        <h2 class="modal-title">🎯 حان دور اللاعب!</h2>
+        <div id="turnPlayerName" style="font-size: 26px; font-weight: 800; color: #fbbf24; margin-bottom: 8px;">اسم اللاعب</div>
+        <p class="modal-subtitle">العجلة اختارتك لتقرر من تريد إقصاءه من اللعبة!</p>
+        <div class="instruction-box">
+          ✍️ اكتب رقم اللاعب الذي تريد إقصاءه في شات تيك توك الآن!
+        </div>
+      </div>
+    </div>
+
+    <!-- ★ TARGET SELECTION MODAL: Shows all players for easy selection ★ -->
+    <div id="targetSelectionModal" class="overlay-modal">
+      <div class="modal-content target-selection-content">
+        <div class="target-selection-header">
+          <div class="turn-avatar-wrap" style="width:80px;height:80px;margin:0;">
+            <img id="tsChooserAvatar" class="turn-avatar" src="" alt="">
+            <div id="tsChooserNum" class="turn-num" style="width:30px;height:30px;font-size:14px;">#1</div>
+          </div>
+          <div class="target-selection-info">
+            <h2 class="modal-title" style="font-size:22px;margin-bottom:4px;">🎯 اختر اللاعب للإقصاء!</h2>
+            <div id="tsChooserName" style="color:#fbbf24;font-weight:800;font-size:18px;">اسم اللاعب</div>
+            <div style="font-size:13px;color:#94a3b8;margin-top:4px;">اكتب رقم اللاعب في الشات أو انتظر انتهاء الوقت</div>
+          </div>
+          <!-- Target Selection Timer -->
+          <div class="ts-timer-container">
+            <svg class="timer-circle ts-timer-svg" viewBox="0 0 100 100">
+              <circle class="timer-circle-bg" cx="50" cy="50" r="45"></circle>
+              <circle id="tsTimerProgress" class="timer-circle-progress ts-timer-progress" cx="50" cy="50" r="45"></circle>
+            </svg>
+            <div id="tsTimerDigits" class="timer-digits ts-timer-digits">20</div>
+          </div>
+        </div>
+
+        <!-- Scrollable Player Grid -->
+        <div id="tsPlayerGrid" class="target-player-grid">
+          <!-- Dynamic player cards for selection -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Confrontation Modal: Elimination Warning & Defense Countdown -->
+    <div id="confrontationModal" class="overlay-modal">
+      <div class="modal-content" style="border-color: #ef4444; box-shadow: 0 0 50px rgba(239, 68, 68, 0.6);">
+        <h2 class="modal-title" style="color: #ef4444;">⚠️ تحذير إقصاء وشيك!</h2>
+
+        <div class="confrontation-grid">
+          <!-- Selector -->
+          <div class="combatant-card selector">
+            <img id="selectorAvatar" class="combatant-avatar" src="" alt="">
+            <div id="selectorNum" class="player-num-badge">#1</div>
+            <div id="selectorName" class="combatant-name">المختار</div>
+            <span class="combatant-role">صاحب القرار</span>
+          </div>
+
+          <div class="vs-badge">VS</div>
+
+          <!-- Target -->
+          <div class="combatant-card target">
+            <img id="targetAvatar" class="combatant-avatar" src="" alt="">
+            <div id="targetNum" class="player-num-badge" style="background: #ef4444;">#2</div>
+            <div id="targetName" class="combatant-name">المستهدف</div>
+            <span class="combatant-role">مهدد بالإقصاء</span>
+          </div>
+        </div>
+
+        <!-- Timer Circle -->
+        <div class="timer-container">
+          <svg class="timer-circle" viewBox="0 0 100 100">
+            <circle class="timer-circle-bg" cx="50" cy="50" r="45"></circle>
+            <circle id="timerCircleProgress" class="timer-circle-progress" cx="50" cy="50" r="45"></circle>
+          </svg>
+          <div id="timerDigits" class="timer-digits">30</div>
+        </div>
+
+        <div class="defense-gift-box">
+          <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:10px;">
+            <span>🛡️ فرصة للدفاع عن النفس!</span>
+            <img id="defenseGiftImg" src="" style="width:36px;height:36px;display:none;" alt="">
+          </div>
+          <div id="defenseGiftText" style="color: #fef08a;">أرسل هدية [وردة] لإنقاذ نفسك وإلغاء الإقصاء فوراً!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result Modal (Saved / Rejoined generic) -->
+    <div id="resultModal" class="overlay-modal">
+      <div class="modal-content">
+        <div id="resultIcon" style="font-size: 60px; margin-bottom: 12px;">🛡️</div>
+        <h2 id="resultTitle" class="modal-title">تم إنقاذ اللاعب!</h2>
+        <p id="resultSubtitle" style="font-size: 18px; color: #e2e8f0; line-height: 1.6;">نجح في الدفاع عن نفسه وسيستمر في اللعبة.</p>
+      </div>
+    </div>
+
+    <!-- ★ DEDICATED ELIMINATION MODAL (واجهة إقصاء بارزة ومطولة مع صور اللاعبين) ★ -->
+    <div id="eliminationModal" class="overlay-modal">
+      <div class="modal-content elimination-modal-content">
+        <div class="elim-header-badge">☠️ إقـصــاء مـؤكّــد مـن الـلـعـبـة!</div>
+
+        <div class="elim-players-row">
+          <!-- Eliminated Player (Big Focus) -->
+          <div class="elim-player-focus">
+            <div class="elim-avatar-wrap">
+              <img id="elimPlayerAvatar" class="elim-avatar" src="" alt="">
+              <div id="elimPlayerNum" class="elim-num">#1</div>
+              <div class="elim-skull-badge">☠️</div>
+            </div>
+            <div id="elimPlayerName" class="elim-name">اسم اللاعب المستبعد</div>
+            <div id="elimPlayerUser" class="elim-sub">@username</div>
+            <div class="elim-status-tag">❌ تم إقصاؤه رسمياً من الروليت!</div>
+          </div>
+
+          <!-- Selector Player (Who chose them) -->
+          <div class="elim-by-box" id="elimByBox">
+            <div class="elim-by-label">بقرار من اللاعب:</div>
+            <img id="elimByAvatar" class="elim-by-avatar" src="" alt="">
+            <div id="elimByName" class="elim-by-name">صاحب القرار</div>
+            <div id="elimByNum" class="elim-by-num">#1</div>
+          </div>
+        </div>
+
+        <!-- How to Rejoin info with Real Gift Photo -->
+        <div class="elim-rejoin-notice" id="elimRejoinNotice">
+          <img id="elimRejoinImg" class="elim-rejoin-img" src="assets/gifts/heart.png" alt="">
+          <div class="elim-rejoin-text">
+            <div class="elim-rejoin-title">🔄 هل تريد العودة إلى اللعبة الآن؟</div>
+            <div id="elimRejoinDetail" class="elim-rejoin-detail">
+              أرسل هدية [قلب الحب] بقيمة (5 عملات) لتعود فوراً إلى المنافسة!
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ★ GRAND WINNER MODAL (واجهة فوز وتتويج احتفالية كبرى مع صورة البطل واضحة جداً) ★ -->
+    <div id="winnerModal" class="overlay-modal">
+      <div class="modal-content winner-modal-content">
+        <div class="winner-congrats-header">
+          <div class="winner-confetti-icon">🎉 👑 🎊</div>
+          <h2 class="winner-congrats-title">ألف مبروك الفوز بالبطولة!</h2>
+          <div class="winner-champion-tag">بـطــل رولـيـت تـيـك تـوك لايــف 🏆</div>
+        </div>
+
+        <div class="winner-avatar-stage">
+          <div class="winner-crown-top">👑</div>
+          <img id="winnerAvatar" class="winner-avatar-img" src="" alt="">
+          <div id="winnerNum" class="winner-num-badge">#1</div>
+          <div class="winner-glow-ring"></div>
+        </div>
+
+        <div id="winnerName" class="winner-name-text">اسم البطل الفائز</div>
+        <div id="winnerUser" class="winner-user-text">@username</div>
+
+        <div class="winner-stats-badge">
+          ⚔️ تفوق على جميع اللاعبين وصمد حتى اللحظة الأخيرة ليحصد النصر!
+        </div>
+
+        <div class="instruction-box" style="margin-top: 18px; font-size: 16px; border-color: #f59e0b;">
+          ⚔️ هل يستطيع أحد تحدي البطل؟ أرسل هدية التحدي لمواجهته في جولة جديدة!
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         INLINE ADMIN DRAWER / MODAL
+         ============================================================ -->
+    <div id="adminDrawerModal" class="overlay-modal admin-drawer-modal">
+      <div class="drawer-content">
+        <!-- Drawer Header -->
+        <div class="drawer-header">
+          <div class="drawer-title">
+            <span>⚙️</span>
+            <span>لوحة تحكم وإعدادات روليت البث المباشر</span>
+            <span id="drawerStateBadge" class="badge badge-round" style="font-size: 11px; padding: 4px 10px;">الجولة #1</span>
+          </div>
+
+          <div class="drawer-actions">
+            <a href="/admin" target="_blank" class="drawer-btn" style="padding: 4px 10px; font-size: 12px; text-decoration: none;" title="فتح في نافذة مستقلة">
+              نافذة مستقلة ↗
+            </a>
+            <button id="btnCloseAdminDrawer" class="drawer-close-btn" title="إغلاق">✕</button>
+          </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="drawer-tabs">
+          <button class="drawer-tab-btn active" data-target="tab-live">📡 ربط بث تيك توك</button>
+          <button class="drawer-tab-btn" data-target="tab-controls">🎮 إدارة الجولات</button>
+          <button class="drawer-tab-btn" data-target="tab-gifts">🎁 إعداد الهدايا</button>
+          <button class="drawer-tab-btn" data-target="tab-wheel">🎡 شكل العجلة</button>
+          <button class="drawer-tab-btn" data-target="tab-simulator">⚡ المحاكي التجريبي</button>
+          <button class="drawer-tab-btn" data-target="tab-players">👥 قائمة اللاعبين (<span id="drawerPlayerCount">0</span>)</button>
+          <button class="drawer-tab-btn" data-target="tab-settings">⚙️ الإعدادات العامة</button>
+          <button class="drawer-tab-btn" data-target="tab-logs">📜 السجل المباشر</button>
+        </div>
+
+        <!-- Tabs Content Area -->
+        <div class="tab-content-area">
+          <!-- Tab 1: Live Connection -->
+          <div id="tab-live" class="tab-pane active">
+            <div class="drawer-form-group">
+              <label class="drawer-label" style="font-size: 14px; color: #fef08a;">1. الربط المباشر باسم المستخدم (TikTok Username):</label>
+              <div class="drawer-row">
+                <input type="text" id="drawerTiktokUser" class="drawer-input" placeholder="اكتب اسم الحساب مثل: therealadhamyy" style="direction: ltr; text-align: left; font-size: 15px;">
+                <button id="btnDrawerConnect" class="drawer-btn drawer-btn-primary" style="white-space: nowrap; font-weight: 800;">
+                  📡 اتصال مباشر بالبث
+                </button>
+                <button id="btnDrawerDisconnect" class="drawer-btn drawer-btn-danger" style="display: none; white-space: nowrap;">
+                  قطع الاتصال ⏹️
+                </button>
+              </div>
+              <div id="drawerTiktokStatusText" style="margin-top: 8px; font-size: 13px; color: var(--text-muted);">
+                ⚪ غير متصل بالبث المباشر
+              </div>
+            </div>
+
+            <!-- TikFinity Webhook Option -->
+            <div class="drawer-form-group" style="margin-top: 18px; background: rgba(59, 130, 246, 0.08); padding: 14px; border-radius: 14px; border: 1px solid rgba(59, 130, 246, 0.25);">
+              <label class="drawer-label" style="color: #93c5fd; font-size: 14px;">2. رابط TikFinity Webhook المجاني (يعمل دائماً بدون أي قيود شبكة):</label>
+              <div class="drawer-row" style="margin-top: 8px;">
+                <input type="text" id="drawerWebhookUrl" class="drawer-input" readonly style="direction: ltr; text-align: left; background: #000; color: #6ee7b7; font-family: monospace;">
+                <button id="btnCopyWebhook" class="drawer-btn" style="white-space: nowrap; background: #2563eb; color: #fff;">📋 نسخ الرابط</button>
+              </div>
+              <p style="font-size: 12px; color: #94a3b8; margin-top: 6px; line-height: 1.5;">
+                ضع هذا الرابط في إعدادات Webhook ببرنامج TikFinity مع تفعيل Chat و Gift و Join وسيقوم الموقع باستقبال كافة الأحداث تلقائياً فوراً!
+              </p>
+            </div>
+          </div>
+
+          <!-- Tab 2: Game Controls -->
+          <div id="tab-controls" class="tab-pane">
+            <div class="drawer-btn-grid">
+              <button id="btnDrawerToggleJoin" class="drawer-btn">🔒 إغلاق الانضمام</button>
+              <button id="btnDrawerNextRound" class="drawer-btn">⏩ الجولة التالية</button>
+              <button id="btnDrawerFinalRound" class="drawer-btn" style="background: rgba(168, 85, 247, 0.25); border-color: #a855f7; color: #d8b4fe;">
+                🏆 الحسم النهائي (Final)
+              </button>
+              <button id="btnDrawerCancelElim" class="drawer-btn">🛑 إلغاء الإقصاء الحالي</button>
+            </div>
+
+            <div class="drawer-btn-grid" style="margin-top: 10px;">
+              <button id="btnDrawerPauseTimer" class="drawer-btn">⏸️ إيقاف المؤقت</button>
+              <button id="btnDrawerResumeTimer" class="drawer-btn">▶️ استئناف المؤقت</button>
+              <button id="btnDrawerExtendTimer" class="drawer-btn">⏱️ تمديد +15 ثانية</button>
+              <button id="btnDrawerResetGame" class="drawer-btn drawer-btn-danger">⚠️ إعادة تعيين اللعبة</button>
+            </div>
+          </div>
+
+          <!-- Tab 3: Gift Configuration with Images -->
+          <div id="tab-gifts" class="tab-pane">
+            <div style="font-weight:800;color:#fbbf24;margin-bottom:14px;font-size:16px;">🎁 إعداد الهدايا بالصور — اختر نوع الهدية لكل فئة:</div>
+            
+            <div id="giftConfigContainer" class="gift-config-area">
+              <!-- Dynamically populated gift selectors -->
+            </div>
+          </div>
+
+          <!-- Tab 4: Wheel Customization -->
+          <div id="tab-wheel" class="tab-pane">
+            <div style="font-weight:800;color:#fbbf24;margin-bottom:14px;font-size:16px;">🎡 تخصيص شكل عجلة الروليت:</div>
+            
+            <div class="drawer-row" style="margin-bottom:14px;">
+              <div class="drawer-form-group">
+                <label class="drawer-label">🎨 نمط العجلة:</label>
+                <select id="wheelThemeSelect" class="drawer-input">
+                  <option value="casino">كازينو ذهبي ✨</option>
+                  <option value="neon">نيون متوهج 💚</option>
+                  <option value="classic">كلاسيكي خشبي 🪵</option>
+                  <option value="dark">داكن أحمر 🖤</option>
+                </select>
+              </div>
+              <div class="drawer-form-group">
+                <label class="drawer-label">⏱️ مدة الدوران (ميلي ثانية):</label>
+                <input type="number" id="wheelSpinDuration" class="drawer-input" value="6500" min="3000" max="15000" step="500">
+              </div>
+            </div>
+
+            <div class="drawer-row" style="margin-bottom:14px;">
+              <div class="drawer-form-group">
+                <label class="drawer-label">
+                  <input type="checkbox" id="wheelShowAvatars" checked style="margin-left:8px;"> عرض صور اللاعبين على العجلة
+                </label>
+              </div>
+              <div class="drawer-form-group">
+                <label class="drawer-label">
+                  <input type="checkbox" id="wheelShowNames" checked style="margin-left:8px;"> عرض أسماء اللاعبين على العجلة
+                </label>
+              </div>
+            </div>
+
+            <!-- Live Preview -->
+            <div style="text-align:center;margin-top:10px;">
+              <button id="btnApplyWheelConfig" class="drawer-btn drawer-btn-primary" style="width:100%;padding:12px;">
+                🎡 تطبيق شكل العجلة الجديد
+              </button>
+            </div>
+          </div>
+
+          <!-- Tab 5: Simulator -->
+          <div id="tab-simulator" class="tab-pane">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <span style="font-weight: 800; color: #fbbf24;">⚡ تجربة كافة العمليات فوراً:</span>
+              <button id="btnDrawerMockTen" class="drawer-btn drawer-btn-primary" style="padding: 6px 14px; font-size: 13px;">
+                ➕ توليد 10 لاعبين فوراً
+              </button>
+            </div>
+
+            <!-- Sim Join -->
+            <div style="background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; margin-bottom: 10px;">
+              <div style="font-size: 12px; font-weight: 700; color: #fef08a; margin-bottom: 6px;">1. محاكاة انضمام لاعب:</div>
+              <div class="drawer-row">
+                <input type="text" id="simDrawerJoinNick" class="drawer-input" placeholder="الاسم (مثال: فهد)">
+                <input type="text" id="simDrawerJoinUser" class="drawer-input" placeholder="اليوزر (مثال: fahad_vip)">
+                <button id="btnSimDrawerJoin" class="drawer-btn" style="white-space: nowrap;">انضمام</button>
+              </div>
+            </div>
+
+            <!-- Sim Target Selection -->
+            <div style="background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; margin-bottom: 10px;">
+              <div style="font-size: 12px; font-weight: 700; color: #fef08a; margin-bottom: 6px;">2. محاكاة اختيار رقم الهدف من الشات:</div>
+              <div class="drawer-row" style="margin-bottom: 8px;">
+                <select id="simDrawerCommentUser" class="drawer-input" style="flex: 1.5;"></select>
+                <input type="text" id="simDrawerCommentText" class="drawer-input" placeholder="الرقم المستهدف (مثال: 5)">
+                <button id="btnSimDrawerComment" class="drawer-btn" style="white-space: nowrap;">إرسال التعليق</button>
+              </div>
+              <button id="btnSimDrawerAutoTarget" class="drawer-btn" style="width: 100%; font-size: 13px; background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.4);">
+                🎯 تجهيز واختيار رقم تلقائياً باسم اللاعب صاحب الدور
+              </button>
+            </div>
+
+            <!-- Sim Gifts -->
+            <div style="background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px;">
+              <div style="font-size: 12px; font-weight: 700; color: #fef08a; margin-bottom: 6px;">3. محاكاة إرسال الهدايا بضغطة زر:</div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="drawer-btn" data-drawer-gift="defense" style="flex: 1; font-size: 12px;">🌹 دفاع (1 عملة)</button>
+                <button class="drawer-btn" data-drawer-gift="rejoin" style="flex: 1; font-size: 12px;">💖 عودة (5 عملات)</button>
+                <button class="drawer-btn" data-drawer-gift="help" style="flex: 1; font-size: 12px;">🧢 مساعدة (16 عملة)</button>
+                <button class="drawer-btn" data-drawer-gift="shield" style="flex: 1; font-size: 12px;">🕶️ حصانة (30 عملة)</button>
+                <button class="drawer-btn" data-drawer-gift="final" style="flex: 1; font-size: 12px;">🚀 حسم (100 عملة)</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 6: Player Management -->
+          <div id="tab-players" class="tab-pane">
+            <form id="drawerAddPlayerForm" style="margin-bottom: 12px;">
+              <div class="drawer-row">
+                <input type="text" id="drawerAddNick" class="drawer-input" placeholder="اسم اللاعب">
+                <input type="text" id="drawerAddUser" class="drawer-input" placeholder="حساب تيك توك @">
+                <button type="submit" class="drawer-btn drawer-btn-primary" style="white-space: nowrap;">➕ إضافة يدوياً</button>
+              </div>
+            </form>
+
+            <div style="max-height: 280px; overflow-y: auto;">
+              <table style="width: 100%; border-collapse: collapse; text-align: right; font-size: 13px;">
+                <thead>
+                  <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: var(--text-muted);">
+                    <th style="padding: 6px 8px;">الرقم</th>
+                    <th style="padding: 6px 8px;">اللاعب</th>
+                    <th style="padding: 6px 8px;">الحالة</th>
+                    <th style="padding: 6px 8px;">الإجراء</th>
+                  </tr>
+                </thead>
+                <tbody id="drawerPlayersTableBody">
+                  <!-- Dynamic Rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 7: General Settings -->
+          <div id="tab-settings" class="tab-pane">
+            <form id="drawerSettingsForm">
+              <div class="drawer-row">
+                <div class="drawer-form-group">
+                  <label class="drawer-label">كلمة الانضمام:</label>
+                  <input type="text" id="setDrawerJoinKw" class="drawer-input" value="تم">
+                </div>
+                <div class="drawer-form-group">
+                  <label class="drawer-label">الحد الأقصى للاعبين:</label>
+                  <input type="number" id="setDrawerMaxPlayers" class="drawer-input" value="30">
+                </div>
+                <div class="drawer-form-group">
+                  <label class="drawer-label">تصرف انتهاء وقت الاختيار:</label>
+                  <select id="setDrawerTimeout" class="drawer-input">
+                    <option value="skip">تخطي الدور (Skip)</option>
+                    <option value="respin">إعادة تدوير العجلة (Respin)</option>
+                    <option value="random">اختيار عشوائي (Random Target)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="drawer-row">
+                <div class="drawer-form-group">
+                  <label class="drawer-label">مؤقت اختيار الهدف (ثانية):</label>
+                  <input type="number" id="setDrawerTargetSec" class="drawer-input" value="20">
+                </div>
+                <div class="drawer-form-group">
+                  <label class="drawer-label">مؤقت الدفاع عن النفس (ثانية):</label>
+                  <input type="number" id="setDrawerDefSec" class="drawer-input" value="30">
+                </div>
+              </div>
+
+              <button type="submit" class="drawer-btn drawer-btn-primary" style="width: 100%; margin-top: 10px;">
+                💾 حفظ الإعدادات
+              </button>
+            </form>
+          </div>
+
+          <!-- Tab 8: Activity Logs -->
+          <div id="tab-logs" class="tab-pane">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-weight: 700; font-size: 13px;">📜 سجل العمليات المباشر:</span>
+              <button id="btnDrawerClearLogs" class="drawer-btn" style="padding: 2px 8px; font-size: 11px;">مسح السجل 🗑️</button>
+            </div>
+            <div id="drawerLogsContainer" style="height: 240px; overflow-y: auto; background: #000; padding: 8px; border-radius: 10px; font-family: monospace; font-size: 11px; display: flex; flex-direction: column; gap: 4px;">
+              <!-- Dynamic Logs -->
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script>
+    // Fallback if CDN fails or local socket.io
+    if (typeof io === 'undefined') {
+      document.write('<script src="/socket.io/socket.io.js"><\/script>');
+    }
+  </script>
+  <script src="js/audio.js"></script>
+  <script src="js/roulette.js"></script>
+  <script src="js/overlay.js"></script>
 </body>
 </html>

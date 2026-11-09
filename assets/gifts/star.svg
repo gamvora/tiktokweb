@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <defs>
+    <linearGradient id="starGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffd54f"/>
+      <stop offset="50%" stop-color="#ffb300"/>
+      <stop offset="100%" stop-color="#ff8f00"/>
+    </linearGradient>
+    <radialGradient id="starGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgba(255,213,79,0.4)"/>
+      <stop offset="100%" stop-color="rgba(255,213,79,0)"/>
+    </radialGradient>
+    <linearGradient id="starShine" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.5)"/>
+      <stop offset="40%" stop-color="rgba(255,255,255,0.1)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+  </defs>
+  <g filter="drop-shadow(0px 2px 6px rgba(255,179,0,0.5))">
+    <!-- Glow -->
+    <circle cx="40" cy="40" r="35" fill="url(#starGlow)"/>
+    <!-- Star -->
+    <path d="M40 6 L47 28 L70 28 L52 42 L58 64 L40 52 L22 64 L28 42 L10 28 L33 28Z" fill="url(#starGrad)"/>
+    <!-- Shine -->
+    <path d="M40 6 L47 28 L70 28 L52 42 L58 64 L40 52 L22 64 L28 42 L10 28 L33 28Z" fill="url(#starShine)"/>
+    <!-- Center highlight -->
+    <circle cx="38" cy="34" r="4" fill="white" opacity="0.15"/>
+  </g>
+</svg>

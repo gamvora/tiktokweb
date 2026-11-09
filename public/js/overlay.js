@@ -276,27 +276,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // If in demo mode (on GitHub Pages or backend disconnected)
       if (!socket.connected) {
-        const active = allPlayers.filter(p => !p.isEliminated);
+        const active = allPlayers.filter(p => p.status === 'active' || p.status === 'immune');
         if (active.length < 2) {
           alert('يجب أن يكون هناك لاعبان على الأقل نشطان لتدوير العجلة!');
           return;
         }
         const chosen = active[Math.floor(Math.random() * active.length)];
-        const duration = (currentSnapshot?.settings?.wheel?.spinDuration) || 5000;
         
         btnMainSpinRoulette.disabled = true;
         btnMainSpinRoulette.classList.add('disabled-pulse');
         btnMainSpinRoulette.textContent = '⏳ العجلة تدور الآن...';
         
-        if (window.soundEngine) window.soundEngine.playSpin();
-        wheel.spinToPlayer(chosen.id, duration, () => {
-          if (window.soundEngine) window.soundEngine.playWin();
+        setBanner(`🎡 تدور العجلة الآن لاختيار صاحب الدور...`);
+        hideAllModals();
+
+        wheel.spinToPlayer(chosen, () => {
           currentSnapshot.chosenPlayer = chosen;
+          currentSnapshot.state = 'SELECTED_PLAYER';
+          setBanner(`👑 تم اختيار ${chosen.nickname} (#${chosen.playerNumber}) بالروليت!`);
           showTurnModal(chosen);
           setTimeout(() => {
-            hideTurnModal();
-            openTargetSelection(chosen, currentSnapshot?.settings?.eliminationTimeoutSec || 20);
-          }, 3500);
+            if (turnModal) turnModal.classList.remove('active');
+            currentSnapshot.state = 'SELECTING_TARGET';
+            showTargetSelectionModal(chosen);
+          }, 2400);
         });
         return;
       }
@@ -488,7 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!currentSnapshot) {
       console.log('🎮 Initializing Interactive Demo Mode for GitHub Pages / Standalone Preview...');
       const demoSnapshot = {
-        round: 1,
+        roundNumber: 1,
         state: 'WAITING_JOIN',
         chosenPlayer: null,
         targetPlayer: null,
@@ -498,30 +501,34 @@ document.addEventListener('DOMContentLoaded', () => {
           isJoinOpen: true,
           eliminationMode: 'target_select',
           eliminationTimeoutSec: 20,
-          gifts: {
-            defense: { id: 'rose', name: 'وردة', coins: 1, image: 'assets/gifts/rose.png' },
-            shield: { id: 'sunglasses', name: 'نظارات شمسية', coins: 199, image: 'assets/gifts/sunglasses.png' },
-            rejoin: { id: 'heart', name: 'قلب الحب', coins: 49, image: 'assets/gifts/heart.png' },
-            instantWin: { id: 'rocket', name: 'طائرة نفاثة / صاروخ', coins: 4888, image: 'assets/gifts/rocket.png' }
+          timers: {
+            defenseDuration: 30,
+            targetSelectDuration: 20
           },
-          wheel: {
+          gifts: {
+            defense: { giftName: 'وردة', giftId: 'rose', minCoins: 1 },
+            shield: { giftName: 'نظارات شمسية', giftId: 'sunglasses', minCoins: 199 },
+            rejoin: { giftName: 'قلب الحب', giftId: 'heart', minCoins: 49 },
+            finalRound: { giftName: 'صاروخ', giftId: 'rocket', minCoins: 4888 }
+          },
+          wheelConfig: {
             theme: 'neon',
             spinDuration: 5000,
-            showAvatars: true,
-            showNames: true
+            showPlayerAvatars: true,
+            showPlayerNames: true
           }
         }
       };
 
       const demoPlayers = [
-        { id: '1', playerNumber: 1, nickname: 'محمد 👑', uniqueId: 'mohammed', profilePictureUrl: 'assets/gifts/lion.png', isEliminated: false, hasShield: false },
-        { id: '2', playerNumber: 2, nickname: 'سارة ✨', uniqueId: 'sara', profilePictureUrl: 'assets/gifts/heart.png', isEliminated: false, hasShield: true },
-        { id: '3', playerNumber: 3, nickname: 'أحمد ⚡', uniqueId: 'ahmed', profilePictureUrl: 'assets/gifts/cap.png', isEliminated: false, hasShield: false },
-        { id: '4', playerNumber: 4, nickname: 'خالد 🚀', uniqueId: 'khaled', profilePictureUrl: 'assets/gifts/rocket.png', isEliminated: false, hasShield: false },
-        { id: '5', playerNumber: 5, nickname: 'مريم 🌸', uniqueId: 'mariam', profilePictureUrl: 'assets/gifts/rose.png', isEliminated: false, hasShield: false },
-        { id: '6', playerNumber: 6, nickname: 'علي 🔥', uniqueId: 'ali', profilePictureUrl: 'assets/gifts/trophy.png', isEliminated: false, hasShield: false },
-        { id: '7', playerNumber: 7, nickname: 'نور 🌟', uniqueId: 'nour', profilePictureUrl: 'assets/gifts/pearl.png', isEliminated: false, hasShield: false },
-        { id: '8', playerNumber: 8, nickname: 'فهد 🏎️', uniqueId: 'fahad', profilePictureUrl: 'assets/gifts/car.png', isEliminated: false, hasShield: false }
+        { id: '1', playerNumber: 1, nickname: 'محمد 👑', uniqueId: 'mohammed', profilePictureUrl: 'assets/gifts/lion.png', status: 'active', hasShield: false },
+        { id: '2', playerNumber: 2, nickname: 'سارة ✨', uniqueId: 'sara', profilePictureUrl: 'assets/gifts/heart.png', status: 'immune', hasShield: true },
+        { id: '3', playerNumber: 3, nickname: 'أحمد ⚡', uniqueId: 'ahmed', profilePictureUrl: 'assets/gifts/cap.png', status: 'active', hasShield: false },
+        { id: '4', playerNumber: 4, nickname: 'خالد 🚀', uniqueId: 'khaled', profilePictureUrl: 'assets/gifts/rocket.png', status: 'active', hasShield: false },
+        { id: '5', playerNumber: 5, nickname: 'مريم 🌸', uniqueId: 'mariam', profilePictureUrl: 'assets/gifts/rose.png', status: 'active', hasShield: false },
+        { id: '6', playerNumber: 6, nickname: 'علي 🔥', uniqueId: 'ali', profilePictureUrl: 'assets/gifts/trophy.png', status: 'active', hasShield: false },
+        { id: '7', playerNumber: 7, nickname: 'نور 🌟', uniqueId: 'nour', profilePictureUrl: 'assets/gifts/pearl.png', status: 'active', hasShield: false },
+        { id: '8', playerNumber: 8, nickname: 'فهد 🏎️', uniqueId: 'fahad', profilePictureUrl: 'assets/gifts/car.png', status: 'active', hasShield: false }
       ];
 
       currentSnapshot = demoSnapshot;
@@ -538,8 +545,9 @@ document.addEventListener('DOMContentLoaded', () => {
         btnMainSpinRoulette.classList.remove('disabled-pulse');
         btnMainSpinRoulette.textContent = 'تدوير العجلة 🎡';
       }
+      setBanner('جاهز للبدء! اضغط على زر [تدوير العجلة 🎡] لتجربة اللعبة.');
     }
-  }, 800);
+  }, 300);
 
   // -------------------------------------------------------------
   // Render Methods - Overlay
@@ -850,23 +858,37 @@ document.addEventListener('DOMContentLoaded', () => {
       // Demo mode execution
       const target = allPlayers.find(p => p.playerNumber === targetNumber);
       if (target) {
-        closeTargetSelection();
-        target.isEliminated = true;
+        if (targetSelectionModal) targetSelectionModal.classList.remove('active');
+        target.status = 'eliminated';
+        currentSnapshot.targetPlayer = target;
+        currentSnapshot.state = 'ELIMINATED';
         renderAll();
+        if (window.soundEngine) window.soundEngine.eliminatedGong();
         showEliminationModal(target, chooser);
+        setBanner(`💀 تم إقصاء ${target.nickname} (#${target.playerNumber}) بقرار من ${chooser.nickname}!`);
+
         setTimeout(() => {
-          hideEliminationModal();
-          const remainingActive = allPlayers.filter(p => !p.isEliminated);
+          if (eliminationModal) eliminationModal.classList.remove('active');
+          const remainingActive = allPlayers.filter(p => p.status === 'active' || p.status === 'immune');
           if (remainingActive.length === 1) {
+            currentSnapshot.winner = remainingActive[0];
+            currentSnapshot.state = 'FINISHED';
+            if (window.soundEngine) window.soundEngine.victory();
             showWinnerModal(remainingActive[0]);
+            setBanner(`🏆 فاز بالبطولة اللاعب ${remainingActive[0].nickname}! ألف مبروك!`);
           } else {
+            currentSnapshot.state = 'READY';
+            currentSnapshot.chosenPlayer = null;
+            currentSnapshot.targetPlayer = null;
+            renderAll();
+            setBanner(`🎡 الجولة مستمرة! تبقى ${remainingActive.length} لاعبين. جاهز للتدوير.`);
             if (btnMainSpinRoulette) {
               btnMainSpinRoulette.disabled = false;
               btnMainSpinRoulette.classList.remove('disabled-pulse');
               btnMainSpinRoulette.textContent = 'تدوير العجلة 🎡';
             }
           }
-        }, 6000);
+        }, 6200);
       }
       return;
     }

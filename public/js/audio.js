@@ -228,6 +228,13 @@ class SoundEngine {
       });
     } catch (e) {}
   }
+
+  // Safe Helper Aliases
+  playSpin() { this.tick(1); }
+  playWin() { this.playerSelected(); }
+  playFanfare() { this.victory(); }
+  playerEliminated() { this.eliminatedGong(); }
+  defenseSuccess() { this.savedFanfare(); }
 }
 
 window.soundEngine = new SoundEngine();

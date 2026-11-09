@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <defs>
+    <linearGradient id="skinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffcc99"/>
+      <stop offset="100%" stop-color="#f0a870"/>
+    </linearGradient>
+    <radialGradient id="miniHeart" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#ff6b9d"/>
+      <stop offset="100%" stop-color="#e91e63"/>
+    </radialGradient>
+  </defs>
+  <g filter="drop-shadow(1px 2px 3px rgba(0,0,0,0.25))">
+    <!-- Thumb -->
+    <path d="M28 55 Q22 50 22 42 Q22 35 28 30 Q32 27 34 30 L36 40" fill="url(#skinGrad)" stroke="#e6a060" stroke-width="1"/>
+    <!-- Index finger -->
+    <path d="M52 55 Q58 50 58 42 Q58 35 52 30 Q48 27 46 30 L44 40" fill="url(#skinGrad)" stroke="#e6a060" stroke-width="1"/>
+    <!-- Palm -->
+    <path d="M28 55 Q30 70 40 72 Q50 70 52 55" fill="url(#skinGrad)" stroke="#e6a060" stroke-width="1"/>
+    <!-- Finger tips touching -->
+    <ellipse cx="40" cy="32" rx="6" ry="5" fill="url(#skinGrad)" stroke="#e6a060" stroke-width="1"/>
+    <!-- Mini heart -->
+    <path d="M40 20 C37 16 32 16 32 20 C32 24 40 28 40 28 C40 28 48 24 48 20 C48 16 43 16 40 20Z" fill="url(#miniHeart)"/>
+    <!-- Heart shine -->
+    <ellipse cx="36" cy="19" rx="2" ry="1.5" fill="white" opacity="0.3"/>
+  </g>
+</svg>

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <defs>
+    <linearGradient id="coneGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#deb887"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </linearGradient>
+    <radialGradient id="scoopPink" cx="50%" cy="30%" r="60%">
+      <stop offset="0%" stop-color="#ffb6c1"/>
+      <stop offset="100%" stop-color="#ff69b4"/>
+    </radialGradient>
+    <radialGradient id="scoopWhite" cx="50%" cy="30%" r="60%">
+      <stop offset="0%" stop-color="#fffff0"/>
+      <stop offset="100%" stop-color="#ffefd5"/>
+    </radialGradient>
+    <radialGradient id="scoopBrown" cx="50%" cy="30%" r="60%">
+      <stop offset="0%" stop-color="#a0522d"/>
+      <stop offset="100%" stop-color="#6b3a2a"/>
+    </radialGradient>
+  </defs>
+  <g filter="drop-shadow(1px 2px 3px rgba(0,0,0,0.25))">
+    <!-- Cone -->
+    <path d="M28 42 L40 75 L52 42Z" fill="url(#coneGrad)"/>
+    <!-- Cone lines -->
+    <line x1="32" y1="45" x2="38" y2="70" stroke="#b8860b" stroke-width="0.7" opacity="0.5"/>
+    <line x1="48" y1="45" x2="42" y2="70" stroke="#b8860b" stroke-width="0.7" opacity="0.5"/>
+    <line x1="30" y1="50" x2="50" y2="50" stroke="#b8860b" stroke-width="0.7" opacity="0.4"/>
+    <line x1="33" y1="58" x2="47" y2="58" stroke="#b8860b" stroke-width="0.7" opacity="0.4"/>
+    <!-- Bottom scoop (chocolate) -->
+    <circle cx="40" cy="38" r="14" fill="url(#scoopBrown)"/>
+    <!-- Middle scoop (vanilla) -->
+    <circle cx="40" cy="24" r="12" fill="url(#scoopWhite)"/>
+    <!-- Top scoop (strawberry) -->
+    <circle cx="40" cy="12" r="10" fill="url(#scoopPink)"/>
+    <!-- Cherry -->
+    <circle cx="40" cy="4" r="3" fill="#e53935"/>
+    <path d="M40 4 Q42 0 44 2" stroke="#4caf50" stroke-width="1" fill="none"/>
+    <!-- Shine -->
+    <ellipse cx="36" cy="10" rx="3" ry="2" fill="white" opacity="0.3"/>
+  </g>
+</svg>
