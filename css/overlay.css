@@ -1754,18 +1754,20 @@ body {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: linear-gradient(90deg, rgba(15,23,42,0.95), rgba(30,41,59,0.95));
-  border-bottom: 1px solid rgba(245,158,11,0.3);
+  background: rgba(15,23,42,0.55);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(245,158,11,0.4);
   overflow: hidden;
-  height: 46px;
+  height: 48px;
 }
 .gift-ticker-track {
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 36px;
   height: 100%;
   white-space: nowrap;
-  animation: ticker-scroll 40s linear infinite;
+  width: max-content;
+  animation: ticker-scroll 30s linear infinite;
   padding: 0 20px;
 }
 .ticker-item {
