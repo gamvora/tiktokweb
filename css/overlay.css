@@ -1716,3 +1716,36 @@ body {
   color: #fef08a;
   display: inline-block;
 }
+
+/* Welcome / Connect modal */
+.welcome-modal .welcome-content {
+  max-width: 520px;
+  width: 92vw;
+  padding: 28px 24px;
+  text-align: center;
+}
+.welcome-logo {
+  font-size: 56px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.welcome-title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 800;
+  color: #fbbf24;
+}
+.welcome-sub {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+.welcome-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.welcome-row .drawer-input {
+  flex: 1;
+}

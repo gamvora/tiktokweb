@@ -371,6 +371,10 @@
               <div id="drawerTiktokStatusText" style="margin-top: 8px; font-size: 13px; color: var(--text-muted);">
                 ⚪ غير متصل بالبث المباشر
               </div>
+              <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                <button id="btnCopyObsLinkDrawer" class="drawer-btn" style="flex:1; font-size:12px;">📋 نسخ رابط OBS</button>
+                <button id="btnDrawerChangeAccount" class="drawer-btn" style="flex:1; font-size:12px;">🔄 تغيير الحساب</button>
+              </div>
             </div>
 
             <!-- TikFinity Webhook Option -->
@@ -593,6 +597,30 @@
     </div>
   </div>
 
+  <!-- Welcome / Connect Modal -->
+  <div id="welcomeModal" class="overlay-modal welcome-modal">
+    <div class="welcome-content">
+      <div class="welcome-logo">🎡</div>
+      <h2 class="welcome-title">روليت تيك توك لايف</h2>
+      <p class="welcome-sub">أدخل اسم المستخدم (بدون @) للتحقق من البث وربط الأحداث تلقائياً.</p>
+      <div class="welcome-row">
+        <input type="text" id="welcomeUsername" class="drawer-input" placeholder="therealadhamyy" dir="ltr" style="text-align:left;">
+        <button id="btnWelcomeConnect" class="drawer-btn drawer-btn-primary" style="white-space:nowrap;">🔗 ربط بالبث</button>
+      </div>
+      <div id="welcomeStatus" style="margin-top:10px; font-size:13px;"></div>
+      <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+        <button id="btnWelcomeDemo" class="drawer-btn" style="flex:1;">⚡ تجربة بدون بث</button>
+      </div>
+      <div id="obsLinkBox" style="display:none; margin-top:14px;">
+        <label class="drawer-label">رابط OBS (انسخه في المتصفح أو OBS):</label>
+        <div class="welcome-row">
+          <input type="text" id="obsLinkInput" class="drawer-input" readonly dir="ltr" style="text-align:left; font-size:12px;">
+          <button id="btnCopyObsLink" class="drawer-btn" style="white-space:nowrap;">📋 نسخ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
   <script>
     // 🌐 إعداد رابط سيرفر الباك إند (Railway):
@@ -607,6 +635,9 @@
     }
   </script>
   <script src="js/backend.js"></script>
+  <script src="js/game-config.js"></script>
+  <script src="js/game-engine.js"></script>
+  <script src="js/tiktok-live.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/roulette.js"></script>
   <script src="js/overlay.js"></script>

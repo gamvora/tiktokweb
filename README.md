@@ -1,3 +1,5 @@
+> **New Vercel mode (username only):** No server or install needed. Open the site, enter a TikTok username (without @). The system verifies the account is live then connects events (chat, gifts, room info) automatically. OBS URL: /overlay?user=USERNAME
+
 # 🎡 TikTok Live Roulette - لعبة روليت تيك توك لايف التفاعلية
 
 نظام متكامل واحترافي مخصص لبثوث تيك توك المباشرة (TikTok Live) وشاشات البث (OBS / Streamlabs / TikTok Live Studio) مع ربط مباشر بحساب التيك توك وتكامل TikFinity.

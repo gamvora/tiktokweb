@@ -29,8 +29,8 @@
     // 1) أولوية للرابط الممرَّر في عنوان الصفحة (ويُحفظ تلقائياً)
     try {
       const params = new URLSearchParams(window.location.search);
-      const fromQuery = normalize(params.get('backend') || params.get('server') || params.get('api'));
-      if (fromQuery) {
+      if (params.has('backend') || params.has('server') || params.has('api')) {
+        const fromQuery = normalize(params.get('backend') || params.get('server') || params.get('api') || '');
         try { localStorage.setItem(STORAGE_KEY, fromQuery); } catch (e) {}
         return fromQuery;
       }

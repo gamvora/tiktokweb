@@ -6,9 +6,16 @@
 // ── تحديد عنوان الـ backend (من js/backend.js المشترك) ─────
 const BACKEND_URL = window.BACKEND_URL || '';
 
-// ── متغيرات Socket.IO ───────────────────────────────────────
+// في وضع Vercel (بدون خادم منفصل) يعمل محرّك اللعبة داخل المتصفح
+// وتُجلب أحداث TikTok من دوال Vercel مباشرة.
+const STANDALONE_MODE = !BACKEND_URL;
+
+// ── متغيرات Socket.IO / المحرّك المحلي ─────────────────────
 let socket = null;
 let socketConnected = false;
+let localEngine = null;
+let liveClient = null;
+let currentUsername = '';
 
 document.addEventListener('DOMContentLoaded', () => {
   // إنشاء BroadcastChannel للتواصل مع نافذة Admin في نفس المتصفح
@@ -187,6 +194,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const backendUrlInput = document.getElementById('backendUrlInput');
   const btnSaveBackendUrl = document.getElementById('btnSaveBackendUrl');
 
+  // Welcome / Connect modal
+  const welcomeModal = document.getElementById('welcomeModal');
+  const welcomeUsername = document.getElementById('welcomeUsername');
+  const btnWelcomeConnect = document.getElementById('btnWelcomeConnect');
+  const welcomeStatus = document.getElementById('welcomeStatus');
+  const btnWelcomeDemo = document.getElementById('btnWelcomeDemo');
+  const obsLinkBox = document.getElementById('obsLinkBox');
+  const obsLinkInput = document.getElementById('obsLinkInput');
+  const btnCopyObsLink = document.getElementById('btnCopyObsLink');
+  const btnCopyObsLinkDrawer = document.getElementById('btnCopyObsLinkDrawer');
+  const btnDrawerChangeAccount = document.getElementById('btnDrawerChangeAccount');
+
   // ── State ─────────────────────────────────────────────────
   let currentSnapshot = null;
   let lastVisualState = null;
@@ -283,8 +302,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ── API Helper ────────────────────────────────────────────
+  // في وضع Vercel تُوجّه الأوامر إلى محرّك اللعبة المحلي مباشرة،
+  // وفي وضع الخادم تُرسل إلى REST API كما كان سابقاً.
   async function apiPost(path, body = {}) {
-    if (!BACKEND_URL) return null;
+    if (!BACKEND_URL) return localApi(path, body);
     try {
       const url = BACKEND_URL ? `${BACKEND_URL}/api${path}` : `/api${path}`;
       const res = await fetch(url, {
@@ -298,11 +319,157 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // ── Local API dispatcher (Vercel / standalone) ─────────────
+  function localApi(path, body = {}) {
+    if (!localEngine) return null;
+    const engine = localEngine;
+
+    // Dynamic player management routes
+    let m;
+    if ((m = path.match(/^\/players\/(.+)\/revive$/))) {
+      const id = decodeURIComponent(m[1]);
+      const p = engine.players.find((x) => x.id === id);
+      if (p) { p.status = 'active'; engine.persist(); engine.emit('players_updated', engine.players); engine.emit('state_updated', engine.getSnapshot()); }
+      allPlayers = engine.players || allPlayers;
+      wheel.setPlayers(allPlayers);
+      renderAll();
+      return { success: true };
+    }
+    if ((m = path.match(/^\/players\/(.+)\/shield$/))) {
+      const id = decodeURIComponent(m[1]);
+      const p = engine.players.find((x) => x.id === id);
+      if (p) {
+        const hasShield = body.hasShield !== undefined ? !!body.hasShield : !p.hasShield;
+        p.hasShield = hasShield;
+        p.status = hasShield ? 'immune' : 'active';
+        if (hasShield) p.shieldRoundsRemaining = body.rounds || 1;
+        engine.persist();
+        engine.emit('players_updated', engine.players);
+        engine.emit('state_updated', engine.getSnapshot());
+      }
+      allPlayers = engine.players || allPlayers;
+      wheel.setPlayers(allPlayers);
+      renderAll();
+      return { success: true };
+    }
+    if ((m = path.match(/^\/players\/(.+)\/delete$/))) {
+      const id = decodeURIComponent(m[1]);
+      engine.players = engine.players.filter((p) => p.id !== id);
+      engine.persist();
+      engine.emit('players_updated', engine.players);
+      engine.emit('state_updated', engine.getSnapshot());
+      allPlayers = engine.players || allPlayers;
+      wheel.setPlayers(allPlayers);
+      renderAll();
+      return { success: true };
+    }
+
+    switch (path) {
+      case '/control/join': {
+        const isOpen = body.isOpen !== undefined ? !!body.isOpen : !engine.settings.isJoinOpen;
+        engine.settings.isJoinOpen = isOpen;
+        engine.persist();
+        engine.logActivity('JOIN_TOGGLE', isOpen ? 'تم فتح باب الانضمام للاعبين' : 'تم إغلاق باب الانضمام');
+        engine.emit('settings_updated', engine.getPublicSettings());
+        engine.emit('state_updated', engine.getSnapshot());
+        return { success: true, isJoinOpen: isOpen };
+      }
+      case '/control/roulette/start': {
+        const result = engine.startRoulette();
+        if (!result.success) setTimeout(() => alert(result.reason || 'تعذر تشغيل الروليت'), 0);
+        return result;
+      }
+      case '/control/roulette/land':
+        engine.landRoulette();
+        return { success: true, chosenPlayer: engine.chosenPlayer };
+      case '/control/round/next':
+        engine.nextRound();
+        return { success: true, roundNumber: engine.roundNumber };
+      case '/control/round/final':
+        engine.startFinalRound();
+        return { success: true };
+      case '/control/elimination/cancel':
+        engine.cancelElimination();
+        return { success: true };
+      case '/control/timer/pause':
+        engine.pauseTimer();
+        return { success: true, isPaused: engine.isPaused };
+      case '/control/timer/resume':
+        engine.resumeTimer();
+        return { success: true, isPaused: engine.isPaused };
+      case '/control/timer/extend':
+        engine.extendTimer(parseInt(body.seconds || 10, 10));
+        return { success: true };
+      case '/control/game/reset':
+        engine.resetGame();
+        return { success: true };
+      case '/settings':
+        engine.updateSettings(body);
+        return { success: true, settings: engine.getPublicSettings() };
+      case '/players/add': {
+        const result = engine.addPlayer({
+          uniqueId: body.uniqueId || body.nickname,
+          nickname: body.nickname || body.uniqueId || 'لاعب',
+          profilePictureUrl: body.profilePictureUrl,
+          manual: true
+        });
+        if (result.success && body.playerNumber) {
+          engine.changePlayerNumber(result.player.id, body.playerNumber);
+        }
+        allPlayers = engine.players || allPlayers;
+        wheel.setPlayers(allPlayers);
+        renderAll();
+        return result;
+      }
+      case '/simulate/join': {
+        const uid = body.uniqueId || `user_${Math.floor(Math.random() * 1000)}`;
+        const result = engine.handleChatComment({
+          userId: 'sim_' + uid,
+          uniqueId: uid,
+          nickname: body.nickname || uid,
+          commentText: engine.settings.joinKeyword || 'تم',
+          profilePictureUrl: body.avatar
+        });
+        allPlayers = engine.players || allPlayers;
+        wheel.setPlayers(allPlayers);
+        renderAll();
+        return { success: !!result, result };
+      }
+      case '/simulate/comment': {
+        const player = engine.getPlayerById(body.uniqueId);
+        const result = engine.handleChatComment({
+          userId: player ? player.userId : 'sim_' + body.uniqueId,
+          uniqueId: body.uniqueId || (player ? player.uniqueId : 'tester'),
+          nickname: player ? player.nickname : body.uniqueId,
+          commentText: body.commentText
+        });
+        return { success: !!result, result };
+      }
+      case '/simulate/gift': {
+        const player = engine.getPlayerById(body.uniqueId);
+        const giftEvent = {
+          userId: player ? player.userId : 'sim_' + (body.uniqueId || 'viewer'),
+          uniqueId: body.uniqueId || (player ? player.uniqueId : 'viewer'),
+          nickname: player ? player.nickname : body.uniqueId,
+          giftId: body.giftId || null,
+          giftName: body.giftName || 'هدية تجريبية',
+          diamonds: parseInt(body.coins || 1, 10),
+          repeatCount: parseInt(body.repeatCount || 1, 10),
+          eventId: `sim_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+        };
+        engine.dispatchGift(giftEvent);
+        return { success: true, giftEvent };
+      }
+      default:
+        return null;
+    }
+  }
+
   // ── Main Spin Button ──────────────────────────────────────
   async function triggerRouletteSpin() {
     if (window.soundEngine) window.soundEngine.init();
 
-    if (BACKEND_URL) {
+    if (BACKEND_URL || STANDALONE_MODE) {
       const data = await apiPost('/control/roulette/start');
       if (data && !data.success) alert(data.reason || 'تعذر تشغيل الروليت');
       return;
@@ -592,6 +759,278 @@ document.addEventListener('DOMContentLoaded', () => {
     setBanner('⚡ وضع Demo - اضغط [تدوير العجلة] لتجربة اللعبة كاملاً!');
   }
 
+  // ══════════════════════════════════════════════════════════
+  // وضع Vercel المستقل: محرّك لعبة محلي + أحداث TikTok عبر SSE
+  // ══════════════════════════════════════════════════════════
+  let browserStorage = null;
+
+  function createBrowserStorage() {
+    const STATE_KEY = 'tiktok_roulette_state_v1';
+    const LOGS_KEY = 'tiktok_roulette_logs_v1';
+
+    return {
+      loadGameState() {
+        try {
+          const raw = localStorage.getItem(STATE_KEY);
+          return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+          return null;
+        }
+      },
+      saveGameState(state) {
+        try {
+          localStorage.setItem(STATE_KEY, JSON.stringify(state));
+        } catch (e) {}
+      },
+      appendLog(entry) {
+        const item = {
+          id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+          timestamp: new Date().toISOString(),
+          ...entry
+        };
+        try {
+          const logs = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
+          logs.push(item);
+          localStorage.setItem(LOGS_KEY, JSON.stringify(logs.slice(-300)));
+        } catch (e) {}
+        return item;
+      },
+      loadLogs(limit = 200) {
+        try {
+          const logs = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
+          return logs.slice(-limit);
+        } catch (e) {
+          return [];
+        }
+      },
+      clearLogs() {
+        try {
+          localStorage.removeItem(LOGS_KEY);
+        } catch (e) {}
+      }
+    };
+  }
+
+  function setConnectStatus(kind, text) {
+    const color = kind === 'error' ? '#ef4444' : kind === 'success' ? '#10b981' : '#f59e0b';
+    const html = `<span style="color:${color};font-weight:700;">${escapeHtml(text)}</span>`;
+    if (welcomeStatus) welcomeStatus.innerHTML = html;
+    if (drawerTiktokStatusText) drawerTiktokStatusText.innerHTML = html;
+  }
+
+  function showWelcomeModal() {
+    if (welcomeModal) welcomeModal.classList.add('active');
+  }
+
+  function hideWelcomeModal() {
+    if (welcomeModal) welcomeModal.classList.remove('active');
+  }
+
+  function updateObsLink(username) {
+    if (!obsLinkInput) return;
+    const url = `${location.origin}/overlay?user=${encodeURIComponent(username || '')}`;
+    obsLinkInput.value = url;
+    if (obsLinkBox) obsLinkBox.style.display = 'block';
+  }
+
+  async function copyText(text) {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('✅ تم النسخ!');
+    } catch (e) {
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      try { document.execCommand('copy'); alert('✅ تم النسخ!'); } catch (err) { alert(text); }
+      document.body.removeChild(el);
+    }
+  }
+
+  async function connectTikTok(username, options = {}) {
+    const clean = String(username || '').trim().replace(/^@+/, '');
+    if (!clean) {
+      setConnectStatus('error', 'اكتب اسم مستخدم تيك توك أولاً.');
+      showWelcomeModal();
+      return { success: false, error: 'missing username' };
+    }
+
+    currentUsername = clean;
+    try { localStorage.setItem('tiktok_roulette_username', clean); } catch (e) {}
+    if (drawerTiktokUser) drawerTiktokUser.value = clean;
+    if (welcomeUsername) welcomeUsername.value = clean;
+
+    setConnectStatus('checking', `⏳ جاري التحقق من بث @${clean}...`);
+    updateTikTokBadge({ status: 'connecting', username: clean });
+
+    try {
+      const result = await liveClient.check(clean);
+      if (!result.live) {
+        const msg = result.error || 'الحساب ليس على الهواء حالياً.';
+        setConnectStatus('error', msg);
+        updateTikTokBadge({ status: 'error', username: clean, lastError: msg });
+        showWelcomeModal();
+        return { success: false, error: msg };
+      }
+
+      const viewers = result.viewerCount ? ` (${result.viewerCount} مشاهد 👁️)` : '';
+      setConnectStatus('success', `✅ @${clean} على الهواء${viewers} — جاري ربط الأحداث...`);
+      updateObsLink(clean);
+      liveClient.connect(clean);
+      return { success: true, ...result };
+    } catch (error) {
+      const msg = error?.message || 'تعذر التحقق من البث. تأكد من اتصال الإنترنت.';
+      setConnectStatus('error', msg);
+      updateTikTokBadge({ status: 'error', username: clean, lastError: msg });
+      showWelcomeModal();
+      return { success: false, error: msg };
+    }
+  }
+
+  function startStandaloneMode() {
+    const Engine = window.TikTokRouletteEngine;
+    if (!Engine || !Engine.GameState || !window.TikTokLiveClient) {
+      console.warn('[Overlay] محرّك اللعبة غير محمّل — الرجوع لوضع Demo');
+      startDemoMode();
+      return;
+    }
+
+    console.log('[Overlay] 🟢 وضع Vercel المستقل — محرّك اللعبة داخل المتصفح');
+
+    browserStorage = createBrowserStorage();
+    localEngine = new Engine.GameState({
+      config: window.TikTokRouletteConfig || {},
+      storage: browserStorage,
+      persist: true
+    });
+
+    // نستخدم نفس معالجات Socket.IO لكن مع المحرّك المحلي
+    socket = {
+      on(event, handler) {
+        localEngine.on(event, handler);
+        return this;
+      }
+    };
+    socketConnected = true;
+    setupSocketEvents();
+
+    currentSnapshot = localEngine.getSnapshot();
+    allPlayers = localEngine.players || [];
+    applyWheelConfigFromSnapshot();
+    renderAll();
+    updateTikTokBadge({ status: 'disconnected' });
+
+    // السجلات المحفوظة
+    try {
+      browserStorage.loadLogs(40).reverse().forEach(appendDrawerLog);
+    } catch (e) {}
+
+    // ── TikTok Live client ──────────────────────────────────
+    liveClient = new window.TikTokLiveClient({ baseUrl: '' });
+
+    liveClient.on('status', (status) => {
+      updateTikTokBadge(status);
+      if (status.status === 'connected') {
+        hideWelcomeModal();
+        currentUsername = status.username || currentUsername;
+        updateObsLink(currentUsername);
+        setConnectStatus('success', `✅ متصل بالبث (@${currentUsername})`);
+      } else if (status.status === 'error' || status.status === 'ended') {
+        const msg = status.error || status.lastError || 'تعذر الاتصال بالبث.';
+        setConnectStatus('error', msg);
+        showWelcomeModal();
+      } else if (status.status === 'reconnecting') {
+        setConnectStatus('checking', '🔄 جاري إعادة الاتصال بالبث...');
+      } else if (status.status === 'connecting') {
+        setConnectStatus('checking', `⏳ جاري ربط الأحداث بـ @${status.username}...`);
+      }
+    });
+
+    liveClient.on('chat', (chat) => {
+      try { localEngine.handleChatComment(chat); } catch (e) { console.error('[Overlay] chat:', e); }
+    });
+
+    liveClient.on('gift', (gift) => {
+      try { localEngine.dispatchGift(gift); } catch (e) { console.error('[Overlay] gift:', e); }
+    });
+
+    liveClient.on('room_info', (info) => {
+      if (!tiktokBadgeEl || !currentUsername) return;
+      const viewers = info?.viewerCount ? ` (${info.viewerCount} 👁️)` : '';
+      tiktokBadgeEl.innerHTML = `<span class="pulse-dot"></span> ✅: @${currentUsername}${viewers}`;
+    });
+
+    // ── Welcome modal events ────────────────────────────────
+    if (btnWelcomeConnect) {
+      btnWelcomeConnect.addEventListener('click', () => connectTikTok(welcomeUsername?.value));
+    }
+    if (welcomeUsername) {
+      welcomeUsername.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') connectTikTok(welcomeUsername.value);
+      });
+    }
+    if (btnWelcomeDemo) {
+      btnWelcomeDemo.addEventListener('click', () => {
+        hideWelcomeModal();
+        localEngine.resetGame();
+        const demoPlayers = [
+          ['محمد 👑', 'mohammed_king'], ['سارة ✨', 'queen_sara'],
+          ['أحمد ⚡', 'ahmed_hawk'], ['فهد 🏎️', 'fahad_hero'],
+          ['نورة 🌟', 'noura_live'], ['خالد 🚀', 'khaled_star'],
+          ['مريم 🌸', 'mariam_rose'], ['علي 🔥', 'ali_chief']
+        ];
+        demoPlayers.forEach(([nickname, uniqueId], index) => {
+          localEngine.addPlayer({
+            userId: `demo_${index + 1}`,
+            uniqueId,
+            nickname,
+            profilePictureUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${uniqueId}`,
+            manual: true
+          });
+        });
+        localEngine.logActivity('DEMO_MODE', 'تم تشغيل وضع التجربة بدون بث مباشر');
+        localEngine.emit('state_updated', localEngine.getSnapshot());
+        setBanner('⚡ وضع التجربة — اضغط [تدوير الروليت] لتجربة اللعبة');
+      });
+    }
+    if (btnCopyObsLink) {
+      btnCopyObsLink.addEventListener('click', () => copyText(obsLinkInput?.value));
+    }
+    if (btnCopyObsLinkDrawer) {
+      btnCopyObsLinkDrawer.addEventListener('click', () => {
+        if (!currentUsername) { alert('اتصل بالبث أولاً لنسخ رابط OBS'); return; }
+        copyText(`${location.origin}/overlay?user=${encodeURIComponent(currentUsername)}`);
+      });
+    }
+    if (btnDrawerChangeAccount) {
+      btnDrawerChangeAccount.addEventListener('click', () => {
+        if (liveClient) liveClient.disconnect();
+        currentUsername = '';
+        if (welcomeUsername) welcomeUsername.value = '';
+        setConnectStatus('checking', 'اكتب اسم مستخدم جديد للاتصال ببث آخر.');
+        showWelcomeModal();
+      });
+    }
+
+    // ── Auto-connect from URL (?user=) or last saved username ──
+    let urlUser = '';
+    let savedUser = '';
+    try {
+      const params = new URLSearchParams(location.search);
+      urlUser = (params.get('user') || params.get('username') || '').replace(/^@+/, '').trim();
+    } catch (e) {}
+    try { savedUser = localStorage.getItem('tiktok_roulette_username') || ''; } catch (e) {}
+
+    const autoUser = urlUser || savedUser;
+    if (autoUser) {
+      if (welcomeUsername) welcomeUsername.value = autoUser;
+      connectTikTok(autoUser, { auto: true });
+    } else {
+      showWelcomeModal();
+    }
+  }
+
   // بدء Socket.IO
   window.tiktokBadgeEl = tiktokBadgeEl;
   window.startDemoMode = startDemoMode;
@@ -631,7 +1070,7 @@ document.addEventListener('DOMContentLoaded', () => {
       startDemoMode();
     }
   } else {
-    setTimeout(startDemoMode, 300);
+    setTimeout(startStandaloneMode, 300);
   }
 
   // ── Render Functions ──────────────────────────────────────
@@ -734,6 +1173,17 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (status.status === 'connecting') {
       tiktokBadgeEl.innerHTML = `جاري الاتصال بـ @${status.username}...`;
       if (drawerTiktokStatusText) drawerTiktokStatusText.innerHTML = `<span style="color:#f59e0b;">⏳ جاري الاتصال...</span>`;
+    } else if (status.status === 'reconnecting') {
+      tiktokBadgeEl.innerHTML = `🔄 جاري إعادة الاتصال بـ @${status.username}...`;
+      tiktokBadgeEl.style.borderColor = 'rgba(245,158,11,0.5)';
+      if (drawerTiktokStatusText) drawerTiktokStatusText.innerHTML = `<span style="color:#f59e0b;">🔄 جاري إعادة الاتصال...</span>`;
+    } else if (status.status === 'ended' || status.error || status.lastError) {
+      const msg = status.error || status.lastError || (status.status === 'ended' ? 'انتهى البث المباشر.' : 'تعذر الاتصال');
+      tiktokBadgeEl.innerHTML = `❌ تيك توك: ${msg}`;
+      tiktokBadgeEl.style.borderColor = 'rgba(239,68,68,0.4)';
+      if (drawerTiktokStatusText) drawerTiktokStatusText.innerHTML = `<span style="color:#ef4444;">❌ ${msg}</span>`;
+      if (btnDrawerConnect) btnDrawerConnect.style.display = 'inline-flex';
+      if (btnDrawerDisconnect) btnDrawerDisconnect.style.display = 'none';
     } else if (status.status === 'error') {
       tiktokBadgeEl.innerHTML = `❌ تيك توك: تعذر الاتصال`;
       tiktokBadgeEl.style.borderColor = 'rgba(239,68,68,0.4)';
@@ -937,7 +1387,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!currentSnapshot?.chosenPlayer) return;
     const chooser = currentSnapshot.chosenPlayer;
 
-    if (BACKEND_URL) {
+    if (BACKEND_URL || STANDALONE_MODE) {
       await apiPost('/simulate/comment', { uniqueId: chooser.uniqueId, commentText: `${targetNumber}` });
       return;
     }
@@ -1089,12 +1539,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // TikTok Connect in Drawer
   if (btnDrawerConnect) {
     btnDrawerConnect.addEventListener('click', async () => {
+      if (STANDALONE_MODE) {
+        await connectTikTok(drawerTiktokUser?.value || welcomeUsername?.value);
+        return;
+      }
       const username = drawerTiktokUser.value.trim().replace(/^@/, '');
       if (!username) { alert('يرجى إدخال اسم حساب تيك توك صاحب البث'); return; }
 
       if (drawerTiktokStatusText) drawerTiktokStatusText.innerHTML = `<span style="color:#f59e0b;">⏳ جاري محاولة الاتصال بـ @${username}...</span>`;
 
-      if (BACKEND_URL) {
+      if (BACKEND_URL || STANDALONE_MODE) {
         const data = await apiPost('/tiktok/connect', { username });
         if (data) {
           if (!data.success) {
@@ -1115,6 +1569,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnDrawerDisconnect) {
     btnDrawerDisconnect.addEventListener('click', async () => {
+      if (STANDALONE_MODE) {
+        if (liveClient) liveClient.disconnect();
+        currentUsername = '';
+        updateTikTokBadge({ status: 'disconnected' });
+        setConnectStatus('checking', 'تم قطع الاتصال. أدخل اسم مستخدم جديداً.');
+        showWelcomeModal();
+        return;
+      }
       if (BACKEND_URL) await apiPost('/tiktok/disconnect');
       const s = { status: 'disconnected', username: null };
       updateTikTokBadge(s);
@@ -1135,23 +1597,15 @@ document.addEventListener('DOMContentLoaded', () => {
   drawerControlActions.forEach(([btn, path, body]) => {
     if (!btn) return;
     btn.addEventListener('click', async () => {
-      if (BACKEND_URL) {
-        await apiPost(path, body);
-      } else {
-        appendDrawerLog({ timestamp: new Date().toISOString(), type: 'INFO', message: `ℹ️ ${btn.textContent.trim()} - يتطلب اتصال بالخادم` });
-      }
+      await apiPost(path, body);
     });
   });
 
   if (btnDrawerFinalRound) {
     btnDrawerFinalRound.addEventListener('click', async () => {
       if (confirm('هل تريد بدء مرحلة الحسم النهائي الآن؟')) {
-        if (BACKEND_URL) {
-          await apiPost('/control/round/final');
-          adminDrawerModal.classList.remove('active');
-        } else {
-          alert('يتطلب هذا الإجراء اتصالاً بالخادم');
-        }
+        await apiPost('/control/round/final');
+        adminDrawerModal.classList.remove('active');
       }
     });
   }
@@ -1159,7 +1613,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnDrawerResetGame) {
     btnDrawerResetGame.addEventListener('click', async () => {
       if (confirm('تحذير: هل أنت متأكد من إعادة تعيين اللعبة؟')) {
-        if (BACKEND_URL) {
+        if (BACKEND_URL || STANDALONE_MODE) {
           await apiPost('/control/game/reset');
         } else {
           allPlayers = [];
@@ -1233,7 +1687,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentSnapshot.settings.gifts) currentSnapshot.settings.gifts = {};
         if (!currentSnapshot.settings.gifts[catKey]) currentSnapshot.settings.gifts[catKey] = {};
         currentSnapshot.settings.gifts[catKey].minCoins = newCoins;
-        if (BACKEND_URL) await apiPost('/settings', { gifts: currentSnapshot.settings.gifts });
+        if (BACKEND_URL || STANDALONE_MODE) await apiPost('/settings', { gifts: currentSnapshot.settings.gifts });
         else if (bc) bc.postMessage({ type: 'settings_updated', settings: currentSnapshot.settings });
       });
     });
@@ -1264,7 +1718,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showPlayerNames: wheelShowNames?.checked !== false
       };
       wheel.updateConfig(wc);
-      if (BACKEND_URL) await apiPost('/settings', { wheelConfig: wc });
+      if (BACKEND_URL || STANDALONE_MODE) await apiPost('/settings', { wheelConfig: wc });
       else if (bc) {
         if (currentSnapshot?.settings) currentSnapshot.settings.wheelConfig = wc;
         bc.postMessage({ type: 'settings_updated', settings: currentSnapshot?.settings });
@@ -1276,7 +1730,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Drawer Simulator
   if (btnDrawerMockTen) {
     btnDrawerMockTen.addEventListener('click', async () => {
-      if (BACKEND_URL) {
+      if (BACKEND_URL || STANDALONE_MODE) {
         const mockNames = [
           { name: 'محمد 👑', user: 'mohammed_king' }, { name: 'سارة ✨', user: 'queen_sara' },
           { name: 'أحمد ⚡', user: 'ahmed_hawk' }, { name: 'فهد 🏎️', user: 'fahad_hero' },
@@ -1319,7 +1773,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSimDrawerJoin.addEventListener('click', async () => {
       const u = simDrawerJoinUser?.value?.trim().replace(/^@/, '') || `user_${Date.now() % 1000}`;
       const n = simDrawerJoinNick?.value?.trim() || u;
-      if (BACKEND_URL) {
+      if (BACKEND_URL || STANDALONE_MODE) {
         await apiPost('/simulate/join', { nickname: n, uniqueId: u, avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${u}` });
       } else {
         const nextNum = allPlayers.length > 0 ? Math.max(...allPlayers.map(p => p.playerNumber || 0)) + 1 : 1;
@@ -1340,7 +1794,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const uid = simDrawerCommentUser?.value;
       const txt = simDrawerCommentText?.value?.trim();
       if (!txt) return;
-      if (BACKEND_URL) {
+      if (BACKEND_URL || STANDALONE_MODE) {
         await apiPost('/simulate/comment', { uniqueId: uid, commentText: txt });
       } else {
         const num = parseInt(txt, 10);
@@ -1385,7 +1839,7 @@ document.addEventListener('DOMContentLoaded', () => {
         giftName = gConf?.finalRound?.giftName || 'صاروخ'; coins = gConf?.finalRound?.minCoins || 100;
       }
 
-      if (BACKEND_URL) {
+      if (BACKEND_URL || STANDALONE_MODE) {
         await apiPost('/simulate/gift', { uniqueId, giftName, coins, repeatCount: 1 });
       } else {
         const p = allPlayers.find(x => x.uniqueId === uniqueId);
@@ -1410,7 +1864,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const uniqueId = drawerAddUser?.value?.trim();
       if (!nickname) return;
 
-      if (BACKEND_URL) {
+      if (BACKEND_URL || STANDALONE_MODE) {
         await apiPost('/players/add', { nickname, uniqueId });
       } else {
         const nextNum = allPlayers.length > 0 ? Math.max(...allPlayers.map(p => p.playerNumber || 0)) + 1 : 1;
@@ -1453,6 +1907,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   window.drawerRevivePlayer = async (id) => {
+    if (STANDALONE_MODE) {
+      await apiPost(`/players/${encodeURIComponent(id)}/revive`);
+      return;
+    }
     if (BACKEND_URL) { await apiPost(`/players/${id}/revive`.replace('/api', '')); }
     else {
       const p = allPlayers.find(x => x.id === id);
@@ -1460,6 +1918,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
   window.drawerToggleShield = async (id, hasShield) => {
+    if (STANDALONE_MODE) {
+      await apiPost(`/players/${encodeURIComponent(id)}/shield`, { hasShield, rounds: 1 });
+      return;
+    }
     if (BACKEND_URL) {
       const url = BACKEND_URL ? `${BACKEND_URL}/api/players/${id}/shield` : `/api/players/${id}/shield`;
       await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hasShield, rounds: 1 }) });
@@ -1470,6 +1932,10 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   window.drawerDeletePlayer = async (id) => {
     if (!confirm('حذف هذا اللاعب؟')) return;
+    if (STANDALONE_MODE) {
+      await apiPost(`/players/${encodeURIComponent(id)}/delete`);
+      return;
+    }
     if (BACKEND_URL) {
       const url = BACKEND_URL ? `${BACKEND_URL}/api/players/${id}` : `/api/players/${id}`;
       await fetch(url, { method: 'DELETE' });
@@ -1501,7 +1967,7 @@ document.addEventListener('DOMContentLoaded', () => {
           defenseDuration: parseInt(setDrawerDefSec?.value || '30', 10)
         }
       };
-      if (BACKEND_URL) {
+      if (BACKEND_URL || STANDALONE_MODE) {
         await apiPost('/settings', updated);
       } else {
         if (currentSnapshot?.settings) Object.assign(currentSnapshot.settings, updated);
@@ -1533,7 +1999,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnDrawerClearLogs) {
     btnDrawerClearLogs.addEventListener('click', async () => {
-      if (BACKEND_URL) {
+      if (STANDALONE_MODE && browserStorage) {
+        browserStorage.clearLogs();
+      } else if (BACKEND_URL) {
         const url = BACKEND_URL ? `${BACKEND_URL}/api/logs` : '/api/logs';
         await fetch(url, { method: 'DELETE' }).catch(() => {});
       }
@@ -1541,7 +2009,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (BACKEND_URL) {
+  if (STANDALONE_MODE) {
+    if (browserStorage) {
+      try { browserStorage.loadLogs(40).reverse().forEach(appendDrawerLog); } catch (e) {}
+    }
+  } else if (BACKEND_URL) {
     fetch(`${BACKEND_URL}/api/logs?limit=40`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.logs) d.logs.reverse().forEach(appendDrawerLog); })
