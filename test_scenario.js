@@ -171,11 +171,11 @@ async function runScenarioTest() {
   });
   assert(shieldRes === true && player2.hasShield === true, '21', 'Player #2 activated immunity shield');
 
-  // Verify that an immune player CANNOT be targeted
+  // Verify that a shielded player CAN be targeted (shield acts as hearts, not immunity)
   game.state = GameStates.SELECTING_TARGET;
   game.chosenPlayer = player7;
-  const blockedTarget = game.selectTargetByNumber(2, player7);
-  assert(blockedTarget.success === false && blockedTarget.reason.includes('درع'), '21b', 'Attempt to target immune Player #2 was blocked');
+  const targetedShielded = game.selectTargetByNumber(2, player7);
+  assert(targetedShielded.success === true, '21b', 'Shielded Player #2 can be targeted (shield is a heart)');
 
   // 22. Round progression decrements shield
   game.nextRound();

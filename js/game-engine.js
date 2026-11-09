@@ -689,12 +689,8 @@ class GameState extends EventEmitter {
       return { success: false, reason: 'هذا اللاعب تم إقصاؤه بالفعل' };
     }
 
-    // Cannot target immune player (الحصانة)
-    if (target.hasShield || target.status === 'immune') {
-      this.logActivity('TARGET_BLOCKED_SHIELD', `اللاعب #${targetNum} لديه حصانة فعالة! لا يمكن استهدافه.`);
-      this.emit('target_immune_blocked', { target, selector: selectorPlayer });
-      return { success: false, reason: `اللاعب ${target.nickname} يمتلك درع الحصانة!` };
-    }
+    // Shield acts as hearts: allow targeting shielded players
+    // (shield is consumed if they fail to defend)
 
     // Target is valid! Lock in!
     this.stopTimer();
@@ -778,7 +774,23 @@ class GameState extends EventEmitter {
   handleDefenseTimeout() {
     if (this.state !== GameStates.DEFENDING || !this.targetPlayer) return;
 
-    const eliminated = this.targetPlayer;
+    const target = this.targetPlayer;
+
+    // Shield acts as hearts: consume one shield instead of eliminating
+    if (target.hasShield) {
+      target.hasShield = false;
+      target.shieldRoundsRemaining = 0;
+      if (target.status === 'immune') target.status = 'active';
+      this.state = GameStates.SAVED;
+      this.persist();
+      this.logActivity('SHIELD_CONSUMED', `🛡️ استخدم ${target.nickname} (#${target.playerNumber}) حصانة (قلب) للبقاء في اللعبة!`, { player: target });
+      this.emit('player_shield_consumed', { player: target });
+      this.emit('players_updated', this.players);
+      this.emit('state_updated', this.getSnapshot());
+      return;
+    }
+
+    const eliminated = target;
     eliminated.status = 'eliminated';
     eliminated.eliminatedAt = new Date().toISOString();
     eliminated.eliminatedCount = (eliminated.eliminatedCount || 0) + 1;

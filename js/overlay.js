@@ -205,6 +205,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCopyObsLink = document.getElementById('btnCopyObsLink');
   const btnCopyObsLinkDrawer = document.getElementById('btnCopyObsLinkDrawer');
   const btnDrawerChangeAccount = document.getElementById('btnDrawerChangeAccount');
+  const giftTickerTrack = document.getElementById('giftTickerTrack');
+  const setDrawerStreamerAvatar = document.getElementById('setDrawerStreamerAvatar');
+  const setDrawerStreamerName = document.getElementById('setDrawerStreamerName');
 
   // ── State ─────────────────────────────────────────────────
   let currentSnapshot = null;
@@ -538,6 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('state_updated', (snapshot) => {
       currentSnapshot = snapshot;
+      updateGiftTicker();
       applyWheelConfigFromSnapshot();
       renderHeader();
       handleStateVisuals(snapshot);
@@ -591,11 +595,14 @@ document.addEventListener('DOMContentLoaded', () => {
       setBanner(`🏆 ${player?.nickname || 'لاعب'} في الصدارة برصيد ${score || 0} عملة!`);
     });
 
-    socket.on('winner_challenge_started', ({ challenger, winner } = {}) => {
+    socket.on('winner_challenge_started', ({ challenger, winner, duration } = {}) => {
       hideAllModals();
       if (window.soundEngine) window.soundEngine.siren();
+      const wConf = currentSnapshot?.settings?.gifts?.winnerChallenge;
+      const wInfo = getGiftInfo(wConf?.giftId || wConf?.giftName || 'crown');
+      const secs = duration || 30;
       showResultModal('⚔️ تحدي الفائز!',
-        `${challenger?.nickname || 'متحدٍ'} يتحدى ${winner?.nickname || 'الفائز'}!`, '⚔️', '#a855f7');
+        `${challenger?.nickname || 'متحدٍ'} يتحدى ${winner?.nickname || 'الفائز'}! أرسل [${wConf?.giftName || wInfo.nameAr}] (${wConf?.minCoins || wInfo.coins || 100} عملة) خلال ${secs} ثانية.`, '⚔️', '#a855f7');
     });
 
     socket.on('challenge_ended', ({ winner } = {}) => {
@@ -678,6 +685,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('player_eliminated', ({ player, by }) => {
       hideAllModals();
       if (window.soundEngine) window.soundEngine.eliminatedGong();
+      showKickAnimation(player, by);
       showEliminationModal(player, by);
     });
 
@@ -918,7 +926,9 @@ document.addEventListener('DOMContentLoaded', () => {
     currentSnapshot = localEngine.getSnapshot();
     allPlayers = localEngine.players || [];
     applyWheelConfigFromSnapshot();
+    if (wheel && currentSnapshot?.settings?.streamerAvatar) wheel.setCenterImage(currentSnapshot.settings.streamerAvatar);
     renderAll();
+    updateGiftTicker();
     updateTikTokBadge({ status: 'disconnected' });
 
     // السجلات المحفوظة
@@ -1130,6 +1140,29 @@ document.addEventListener('DOMContentLoaded', () => {
     updateLegendItem(legendShieldImg, legendShieldText, gifts.shield, 'sunglasses', 'حماية من الاستهداف');
     updateLegendItem(legendRejoinImg, legendRejoinText, gifts.rejoin, 'heart', 'للعودة للروليت');
     updateLegendItem(legendFinalImg, legendFinalText, gifts.finalRound, 'rocket', 'لحسم الفوز');
+  }
+
+  function updateGiftTicker() {
+    if (!giftTickerTrack) return;
+    const gifts = currentSnapshot?.settings?.gifts || {};
+    const cats = [
+      { key: 'defense', label: '🛡️ دفاع عن النفس', desc: 'يلغي الإقصاء فوراً' },
+      { key: 'shield', label: '🛡️ حصانة (قلب)', desc: 'قلب إضافي — يُستهلك عند الإقصاء' },
+      { key: 'rejoin', label: '🔄 عودة للعبة', desc: 'إعادة لاعب مستبعد' },
+      { key: 'help', label: '❤️ مساعدة/إنقاذ', desc: 'إنقاذ لاعب مستبعد' },
+      { key: 'finalRound', label: '🚀 حسم الجولة', desc: 'حسم الجولة النهائية' },
+      { key: 'winnerChallenge', label: '👑 تحدي الفائز', desc: 'تحدي البطل' }
+    ];
+    const items = cats.map(c => {
+      const conf = gifts[c.key];
+      const info = getGiftInfo(conf?.giftId || conf?.giftName || 'rose');
+      const img = info.image;
+      const name = conf?.giftName || info.nameAr;
+      const coins = conf?.minCoins || info.coins || 1;
+      return `<div class="ticker-item"><img src="${img}" alt=""><span class="ticker-name">${name}</span><span class="ticker-coins">${coins} عملة</span><span class="ticker-desc">${c.label} — ${c.desc}</span></div>`;
+    }).join('');
+    // duplicate for seamless loop
+    giftTickerTrack.innerHTML = items + items;
   }
 
   function updateSpinButtonState() {
@@ -1489,12 +1522,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 6000);
   }
 
+  function showKickAnimation(player, by) {
+    if (!player) return;
+    const container = document.createElement('div');
+    container.className = 'kick-animation-overlay';
+    const kicker = by ? (by.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${by.playerNumber}`) : '';
+    const victim = player.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${player.playerNumber}`;
+    container.innerHTML = `
+      <div class="kick-scene">
+        ${kicker ? `<img class="kick-kicker" src="${kicker}" alt="">` : ''}
+        <div class="kick-boot">👟</div>
+        <img class="kick-victim" src="${victim}" alt="">
+        <div class="kick-text">💥 ${player.nickname} تم إقصاؤه!</div>
+      </div>`;
+    document.body.appendChild(container);
+    setTimeout(() => { container.classList.add('kick-out'); }, 10);
+    setTimeout(() => { container.remove(); }, 1800);
+  }
+
   function showWinnerModal(winner) {
     if (!winnerModal || !winner) return;
     if (winnerAvatar) winnerAvatar.src = winner.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${winner.playerNumber}`;
     if (winnerName) winnerName.textContent = winner.nickname;
     if (winnerUser) winnerUser.textContent = `@${winner.uniqueId}`;
     if (winnerNum) winnerNum.textContent = `#${winner.playerNumber}`;
+    const wConf = currentSnapshot?.settings?.gifts?.winnerChallenge;
+    const wInfo = getGiftInfo(wConf?.giftId || wConf?.giftName || 'crown');
+    const wBox = document.getElementById('winnerChallengeBox');
+    const wImg = document.getElementById('winnerChallengeGiftImg');
+    const wText = document.getElementById('winnerChallengeText');
+    if (wImg) wImg.src = wInfo.image;
+    if (wText) wText.textContent = `أرسل [${wConf?.giftName || wInfo.nameAr}] (${wConf?.minCoins || wInfo.coins || 100} عملة) لتحدي البطل`;
+    if (wBox) wBox.style.display = 'flex';
     winnerModal.classList.add('active');
   }
 
@@ -1534,6 +1593,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (wheelShowAvatars) wheelShowAvatars.checked = wc.showPlayerAvatars !== false;
       if (wheelShowNames) wheelShowNames.checked = wc.showPlayerNames !== false;
     }
+    const avatar = currentSnapshot?.settings?.streamerAvatar;
+    if (avatar && wheel && wheel.setCenterImage) wheel.setCenterImage(avatar);
   }
 
   // TikTok Connect in Drawer
@@ -1962,6 +2023,8 @@ document.addEventListener('DOMContentLoaded', () => {
         joinKeyword: setDrawerJoinKw?.value?.trim() || 'تم',
         maxPlayers: parseInt(setDrawerMaxPlayers?.value || '30', 10),
         timeoutBehavior: setDrawerTimeout?.value || 'skip',
+        streamerAvatar: setDrawerStreamerAvatar?.value?.trim() || '',
+        streamerName: setDrawerStreamerName?.value?.trim() || '',
         timers: {
           targetSelectDuration: parseInt(setDrawerTargetSec?.value || '20', 10),
           defenseDuration: parseInt(setDrawerDefSec?.value || '30', 10)
@@ -1969,6 +2032,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       if (BACKEND_URL || STANDALONE_MODE) {
         await apiPost('/settings', updated);
+        if (wheel && updated.streamerAvatar) wheel.setCenterImage(updated.streamerAvatar);
       } else {
         if (currentSnapshot?.settings) Object.assign(currentSnapshot.settings, updated);
         if (bc) bc.postMessage({ type: 'settings_updated', settings: currentSnapshot?.settings });
@@ -1985,6 +2049,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (setDrawerTimeout) setDrawerTimeout.value = s.timeoutBehavior || 'skip';
     if (setDrawerTargetSec) setDrawerTargetSec.value = s.timers?.targetSelectDuration || 20;
     if (setDrawerDefSec) setDrawerDefSec.value = s.timers?.defenseDuration || 30;
+    if (setDrawerStreamerAvatar) setDrawerStreamerAvatar.value = s.streamerAvatar || '';
+    if (setDrawerStreamerName) setDrawerStreamerName.value = s.streamerName || '';
   }
 
   // Drawer Logs

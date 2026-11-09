@@ -39,6 +39,10 @@
     // Streamer TikTok Live username
     tiktokUsername: '',
 
+    // صورة صاحب البث (تظهر في مركز العجلة)
+    streamerAvatar: '',
+    streamerName: '',
+
     // Join configuration
     joinKeyword: 'تم',
     maxPlayers: 30,
@@ -49,7 +53,7 @@
       joinDuration: 60,
       targetSelectDuration: 20,
       defenseDuration: 30,
-      challengeDuration: 45,
+      challengeDuration: 30,
       finalRoundDuration: 60
     },
 

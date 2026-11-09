@@ -39,6 +39,11 @@
       </div>
     </header>
 
+  <!-- Gift Ticker -->
+  <div id="giftTicker" class="gift-ticker">
+    <div id="giftTickerTrack" class="gift-ticker-track"></div>
+  </div>
+
     <!-- Main Stage Grid -->
     <main class="main-stage">
       <!-- Right Side: Active Players -->
@@ -310,6 +315,15 @@
         <div id="winnerName" class="winner-name-text">اسم البطل الفائز</div>
         <div id="winnerUser" class="winner-user-text">@username</div>
 
+        <div id="winnerChallengeBox" class="winner-challenge-box" style="display:none; margin-top:14px;">
+          <img id="winnerChallengeGiftImg" src="" alt="" style="width:48px;height:48px;object-fit:contain;">
+          <div>
+            <div style="font-weight:800; color:#fbbf24;">⚔️ تحدي الفائز!</div>
+            <div id="winnerChallengeText" style="font-size:13px; color:#cbd5e1;">أرسل [هدية] لتحدي البطل (${30} ثانية)</div>
+            <div id="winnerChallengeTimer" style="font-size:22px; font-weight:900; color:#ef4444;">30</div>
+          </div>
+        </div>
+
         <div class="winner-stats-badge">
           ⚔️ تفوق على جميع اللاعبين وصمد حتى اللحظة الأخيرة ليحصد النصر!
         </div>
@@ -575,6 +589,14 @@
                   <input type="number" id="setDrawerDefSec" class="drawer-input" value="30">
                 </div>
               </div>
+               <div class="drawer-form-group" style="margin-top:10px;">
+                 <label class="drawer-label">صورة صاحب البث (URL):</label>
+                 <input type="text" id="setDrawerStreamerAvatar" class="drawer-input" placeholder="https://.../avatar.png">
+               </div>
+               <div class="drawer-form-group" style="margin-top:10px;">
+                 <label class="drawer-label">اسم صاحب البث:</label>
+                 <input type="text" id="setDrawerStreamerName" class="drawer-input" placeholder="اسمك">
+               </div>
 
               <button type="submit" class="drawer-btn drawer-btn-primary" style="width: 100%; margin-top: 10px;">
                 💾 حفظ الإعدادات

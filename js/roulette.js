@@ -16,6 +16,7 @@ class RouletteWheel {
       hubColor: '#dc2626',
       showPlayerAvatars: true,
       showPlayerNames: true,
+      centerImage: null,
       ...options
     };
 
@@ -29,6 +30,10 @@ class RouletteWheel {
     // Avatar image cache
     this._avatarCache = {};
     this._avatarLoadQueue = new Set();
+    this._centerImage = null;
+    this._centerImageLoaded = false;
+
+    if (this.options.centerImage) this._loadCenterImage(this.options.centerImage);
 
     this.initCanvas();
     window.addEventListener('resize', () => this.initCanvas());
@@ -61,6 +66,10 @@ class RouletteWheel {
     if (config.spinDuration) this.options.spinDuration = config.spinDuration;
     if (config.showPlayerAvatars !== undefined) this.options.showPlayerAvatars = config.showPlayerAvatars;
     if (config.showPlayerNames !== undefined) this.options.showPlayerNames = config.showPlayerNames;
+    if (config.centerImage !== undefined) {
+      this.options.centerImage = config.centerImage;
+      this._loadCenterImage(config.centerImage);
+    }
     this.draw();
   }
 
@@ -92,6 +101,22 @@ class RouletteWheel {
   _getAvatarImage(player) {
     const url = player.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${player.playerNumber}`;
     return this._avatarCache[url] || null;
+  }
+
+  _loadCenterImage(url) {
+    this._centerImage = null;
+    this._centerImageLoaded = false;
+    if (!url) { this.draw(); return; }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { this._centerImage = img; this._centerImageLoaded = true; this.draw(); };
+    img.onerror = () => { this._centerImage = null; this._centerImageLoaded = false; };
+    img.src = url;
+  }
+
+  setCenterImage(url) {
+    this.options.centerImage = url || null;
+    this._loadCenterImage(url);
   }
 
   _getThemeColors() {
@@ -227,12 +252,12 @@ class RouletteWheel {
       ctx.rotate(midAngle);
 
       const avatarImg = this.options.showPlayerAvatars ? this._getAvatarImage(player) : null;
-      const fontSize = Math.max(14, Math.min(26, Math.floor(220 / Math.sqrt(numSlices))));
-      const smallFont = Math.max(9, Math.min(13, Math.floor(130 / Math.sqrt(numSlices))));
+      const fontSize = Math.max(16, Math.min(28, Math.floor(240 / Math.sqrt(numSlices))));
+      const smallFont = Math.max(11, Math.min(15, Math.floor(150 / Math.sqrt(numSlices))));
 
       if (avatarImg && sliceAngle > 0.15) {
         // Draw circular avatar in the slice
-        const avatarSize = Math.min(32, Math.max(16, Math.floor(radius / (numSlices * 0.35))));
+        const avatarSize = Math.min(38, Math.max(20, Math.floor(radius / (numSlices * 0.3))));
         const avatarX = radius - avatarSize - 8;
         const avatarY = -avatarSize / 2;
 
@@ -315,7 +340,17 @@ class RouletteWheel {
     ctx.font = 'bold 20px "Segoe UI Emoji", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🎡', 0, 0);
+    if (this._centerImageLoaded && this._centerImage) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(0, 0, 30, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(this._centerImage, -30, -30, 60, 60);
+      ctx.restore();
+    } else {
+      ctx.fillText('🎡', 0, 0);
+    }
 
     ctx.restore();
 
