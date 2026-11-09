@@ -595,6 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('winner_challenge_started', ({ challenger, winner, duration } = {}) => {
+      if (window.__winnerTimer) { clearInterval(window.__winnerTimer); window.__winnerTimer = null; }
       hideAllModals();
       if (window.soundEngine) window.soundEngine.siren();
       const wConf = currentSnapshot?.settings?.gifts?.winnerChallenge;
@@ -706,6 +707,20 @@ document.addEventListener('DOMContentLoaded', () => {
       hideAllModals();
       if (window.soundEngine) window.soundEngine.victory();
       showWinnerModal(winner);
+      const timerEl = document.getElementById('winnerChallengeTimer');
+      let remaining = 30;
+      if (timerEl) timerEl.textContent = remaining;
+      if (window.__winnerTimer) clearInterval(window.__winnerTimer);
+      window.__winnerTimer = setInterval(() => {
+        remaining--;
+        if (timerEl) timerEl.textContent = Math.max(0, remaining);
+        if (remaining <= 0) {
+          clearInterval(window.__winnerTimer);
+          window.__winnerTimer = null;
+          if (winnerModal) winnerModal.classList.remove('active');
+          setBanner('🏆 ' + (winner?.nickname || 'الفائز') + ' هو البطل! (انتهت مهلة التحدي)');
+        }
+      }, 1000);
     });
 
     socket.on('game_reset', () => {
