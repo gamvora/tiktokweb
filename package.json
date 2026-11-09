@@ -1,0 +1,26 @@
+{
+  "name": "tiktok-live-roulette",
+  "version": "1.0.0",
+  "description": "Interactive TikTok Live Roulette game with TikFinity and direct TikTok Live connection",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "postinstall": "node patch-connector.js"
+  },
+  "keywords": [
+    "tiktok",
+    "tiktok-live",
+    "roulette",
+    "tikfinity",
+    "interactive-game"
+  ],
+  "author": "Antigravity",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1",
+    "tiktok-live-connector": "^2.5.0"
+  }
+}

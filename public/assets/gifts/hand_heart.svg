@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <defs>
+    <linearGradient id="skinGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffcc99"/>
+      <stop offset="100%" stop-color="#f0a870"/>
+    </linearGradient>
+    <radialGradient id="heartGrad2" cx="50%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#ff7eb3"/>
+      <stop offset="100%" stop-color="#e91e63"/>
+    </radialGradient>
+  </defs>
+  <g filter="drop-shadow(1px 2px 3px rgba(0,0,0,0.25))">
+    <!-- Left hand -->
+    <path d="M8 50 Q5 40 10 30 Q15 22 22 26 Q26 28 28 35 L30 42 Q32 38 36 40" fill="url(#skinGrad2)" stroke="#e6a060" stroke-width="1"/>
+    <!-- Right hand -->
+    <path d="M72 50 Q75 40 70 30 Q65 22 58 26 Q54 28 52 35 L50 42 Q48 38 44 40" fill="url(#skinGrad2)" stroke="#e6a060" stroke-width="1"/>
+    <!-- Palms meeting -->
+    <path d="M30 42 Q32 52 36 58 Q38 62 40 65 Q42 62 44 58 Q48 52 50 42 Q48 38 44 40 Q42 42 40 42 Q38 42 36 40 Q32 38 30 42Z" fill="url(#skinGrad2)" stroke="#e6a060" stroke-width="1"/>
+    <!-- Heart formed -->
+    <path d="M40 38 C37 32 30 32 30 37 C30 42 40 50 40 50 C40 50 50 42 50 37 C50 32 43 32 40 38Z" fill="url(#heartGrad2)"/>
+    <!-- Heart shine -->
+    <ellipse cx="35" cy="36" rx="2.5" ry="2" fill="white" opacity="0.3"/>
+    <!-- Sparkles -->
+    <circle cx="25" cy="20" r="1.5" fill="#ff7eb3" opacity="0.6"/>
+    <circle cx="55" cy="18" r="1" fill="#ff7eb3" opacity="0.5"/>
+    <circle cx="40" cy="14" r="1.2" fill="#ff7eb3" opacity="0.4"/>
+  </g>
+</svg>

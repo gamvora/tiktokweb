@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <defs>
+    <linearGradient id="crownGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffd54f"/>
+      <stop offset="50%" stop-color="#ffb300"/>
+      <stop offset="100%" stop-color="#ff8f00"/>
+    </linearGradient>
+    <linearGradient id="crownShine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.3)"/>
+      <stop offset="50%" stop-color="rgba(255,255,255,0.1)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+  </defs>
+  <g filter="drop-shadow(1px 3px 4px rgba(0,0,0,0.3))">
+    <!-- Crown body -->
+    <path d="M8 55 L8 30 L22 42 L40 15 L58 42 L72 30 L72 55Z" fill="url(#crownGrad)"/>
+    <!-- Crown base -->
+    <rect x="8" y="55" width="64" height="10" rx="2" fill="url(#crownGrad)"/>
+    <!-- Shine overlay -->
+    <path d="M8 55 L8 30 L22 42 L40 15 L58 42 L72 30 L72 55Z" fill="url(#crownShine)"/>
+    <!-- Gems -->
+    <circle cx="40" cy="50" r="4" fill="#e53935"/>
+    <circle cx="40" cy="50" r="2.5" fill="#ef5350" opacity="0.6"/>
+    <circle cx="22" cy="52" r="3" fill="#1e88e5"/>
+    <circle cx="22" cy="52" r="1.8" fill="#42a5f5" opacity="0.6"/>
+    <circle cx="58" cy="52" r="3" fill="#43a047"/>
+    <circle cx="58" cy="52" r="1.8" fill="#66bb6a" opacity="0.6"/>
+    <!-- Top gems -->
+    <circle cx="40" cy="18" r="2.5" fill="#e53935"/>
+    <circle cx="8" cy="30" r="2" fill="#ffd54f"/>
+    <circle cx="72" cy="30" r="2" fill="#ffd54f"/>
+    <!-- Crown edge detail -->
+    <path d="M8 55 L72 55" stroke="#ff8f00" stroke-width="1" opacity="0.5"/>
+  </g>
+</svg>

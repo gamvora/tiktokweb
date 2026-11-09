@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <defs>
+    <linearGradient id="rocketBody" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e0e0e0"/>
+      <stop offset="30%" stop-color="#fafafa"/>
+      <stop offset="100%" stop-color="#bdbdbd"/>
+    </linearGradient>
+    <linearGradient id="rocketNose" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ef5350"/>
+      <stop offset="100%" stop-color="#c62828"/>
+    </linearGradient>
+    <radialGradient id="windowGrad" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#bbdefb"/>
+      <stop offset="100%" stop-color="#1565c0"/>
+    </radialGradient>
+    <linearGradient id="flameGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ff9800"/>
+      <stop offset="50%" stop-color="#ff5722"/>
+      <stop offset="100%" stop-color="#ffeb3b"/>
+    </linearGradient>
+  </defs>
+  <g filter="drop-shadow(1px 2px 3px rgba(0,0,0,0.3))">
+    <!-- Flame -->
+    <path d="M33 62 Q36 72 40 78 Q44 72 47 62" fill="url(#flameGrad)" opacity="0.9"/>
+    <path d="M36 62 Q38 70 40 74 Q42 70 44 62" fill="#ffeb3b" opacity="0.8"/>
+    <!-- Left fin -->
+    <path d="M30 50 L18 62 L30 60Z" fill="url(#rocketNose)"/>
+    <!-- Right fin -->
+    <path d="M50 50 L62 62 L50 60Z" fill="url(#rocketNose)"/>
+    <!-- Body -->
+    <path d="M30 58 L30 30 Q30 20 40 6 Q50 20 50 30 L50 58 Q50 62 40 62 Q30 62 30 58Z" fill="url(#rocketBody)" stroke="#9e9e9e" stroke-width="0.5"/>
+    <!-- Nose cone -->
+    <path d="M35 26 Q35 18 40 6 Q45 18 45 26" fill="url(#rocketNose)"/>
+    <!-- Window -->
+    <circle cx="40" cy="36" r="7" fill="url(#windowGrad)" stroke="#90a4ae" stroke-width="1.5"/>
+    <circle cx="38" cy="34" r="2" fill="white" opacity="0.4"/>
+    <!-- Body stripe -->
+    <rect x="30" y="52" width="20" height="3" fill="url(#rocketNose)" opacity="0.7"/>
+  </g>
+</svg>

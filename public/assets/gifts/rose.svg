@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <defs>
+    <radialGradient id="roseCenter" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#ff4d6a"/>
+      <stop offset="100%" stop-color="#c41e3a"/>
+    </radialGradient>
+    <linearGradient id="rosePetal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff6b81"/>
+      <stop offset="100%" stop-color="#e83e52"/>
+    </linearGradient>
+    <linearGradient id="stem" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4caf50"/>
+      <stop offset="100%" stop-color="#2e7d32"/>
+    </linearGradient>
+  </defs>
+  <g filter="drop-shadow(1px 2px 3px rgba(0,0,0,0.3))">
+    <!-- Stem -->
+    <path d="M40 45 L40 72" stroke="url(#stem)" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <!-- Leaves -->
+    <path d="M40 58 Q30 50 25 55 Q30 60 40 58" fill="#4caf50"/>
+    <path d="M40 52 Q50 44 55 49 Q50 54 40 52" fill="#43a047"/>
+    <!-- Outer petals -->
+    <path d="M40 15 Q20 20 18 35 Q20 45 40 45 Q60 45 62 35 Q60 20 40 15Z" fill="url(#rosePetal)"/>
+    <!-- Mid petals -->
+    <path d="M40 18 Q25 24 24 34 Q28 42 40 42 Q52 42 56 34 Q55 24 40 18Z" fill="url(#roseCenter)"/>
+    <!-- Inner petals -->
+    <ellipse cx="40" cy="30" rx="10" ry="10" fill="#ff4d6a" opacity="0.8"/>
+    <path d="M35 28 Q40 20 45 28 Q42 34 40 34 Q38 34 35 28Z" fill="#ff6b81" opacity="0.7"/>
+  </g>
+</svg>
