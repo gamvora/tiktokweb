@@ -4,3 +4,7 @@ data/activity_logs.json
 *.log
 .DS_Store
 Thumbs.db
+.vercel/
+
+.vercel
+.env*

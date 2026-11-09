@@ -1,5 +1,4 @@
 // GET /api/live?username=... — بث أحداث TikTok Live عبر Server-Sent Events
-// يعيد الاتصال تلقائياً كلما أغلق Vercel الاتصال (حد أقصى للمدة).
 const {
   loadConnector,
   createConnection,
@@ -12,7 +11,7 @@ const {
   applyCors
 } = require('../lib/tiktok');
 
-module.exports = async function handler(req, res) {
+async function handler(req, res) {
   applyCors(res);
 
   if (req.method === 'OPTIONS') {
@@ -149,4 +148,10 @@ module.exports = async function handler(req, res) {
     });
     cleanup(false);
   }
+}
+
+module.exports = handler;
+module.exports.config = {
+  maxDuration: 300,
+  memory: 1024
 };

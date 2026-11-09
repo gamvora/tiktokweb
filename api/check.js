@@ -9,7 +9,7 @@ const {
   applyCors
 } = require('../lib/tiktok');
 
-module.exports = async function handler(req, res) {
+async function handler(req, res) {
   applyCors(res);
 
   if (req.method === 'OPTIONS') {
@@ -56,4 +56,10 @@ module.exports = async function handler(req, res) {
       }
     }
   }
+}
+
+module.exports = handler;
+module.exports.config = {
+  maxDuration: 60,
+  memory: 512
 };

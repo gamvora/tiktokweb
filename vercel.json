@@ -1,16 +1,6 @@
 {
   "version": 2,
   "cleanUrls": true,
-  "functions": {
-    "api/live.js": {
-      "maxDuration": 300,
-      "memory": 1024
-    },
-    "api/check.js": {
-      "maxDuration": 60,
-      "memory": 512
-    }
-  },
   "rewrites": [
     { "source": "/admin", "destination": "/admin.html" },
     { "source": "/overlay", "destination": "/index.html" }
