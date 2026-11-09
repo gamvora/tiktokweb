@@ -581,9 +581,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('player_shield_activated', ({ player, rounds } = {}) => {
       if (window.soundEngine) window.soundEngine.savedFanfare();
-      showResultModal('🛡️ تم تفعيل الحصانة!',
-        `${player?.nickname || 'اللاعب'} محمي من الاستهداف لمدة ${rounds || 1} جولة.`, '🛡️', '#60a5fa');
-      setTimeout(() => hideAllModals(), 3200);
+      showShieldPopup(player, rounds);
+      setTimeout(() => hideAllModals(), 5000);
     });
 
     socket.on('final_round_started', ({ duration } = {}) => {
@@ -1538,6 +1537,25 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.appendChild(container);
     setTimeout(() => { container.classList.add('kick-out'); }, 10);
     setTimeout(() => { container.remove(); }, 1800);
+  }
+
+  function showShieldPopup(player, rounds) {
+    if (!player) return;
+    const url = player.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${player.playerNumber}`;
+    const container = document.createElement('div');
+    container.className = 'shield-popup-overlay';
+    container.innerHTML = `
+      <div class="shield-popup">
+        <img src="${url}" alt="" class="shield-popup-avatar">
+        <div class="shield-popup-text">
+          <div style="font-size:20px; font-weight:900; color:#60a5fa;">🛡️ حصانة!</div>
+          <div style="font-size:15px; color:#e2e8f0; margin-top:4px;">${player.nickname} (#${player.playerNumber})</div>
+          <div style="font-size:13px; color:#94a3b8; margin-top:4px;">قام بشراء حصانة (قلب إضافي) — ${rounds || 1} جولة</div>
+        </div>
+      </div>`;
+    document.body.appendChild(container);
+    setTimeout(() => { container.classList.add('shield-popup-out'); }, 10);
+    setTimeout(() => { container.remove(); }, 5000);
   }
 
   function showWinnerModal(winner) {

@@ -1900,3 +1900,42 @@ body {
 .welcome-row { display: flex; gap: 8px; align-items: center; }
 .welcome-row .drawer-input { flex: 1; }
 .winner-challenge-box { display: flex; align-items: center; gap: 12px; background: rgba(168,85,247,0.1); border: 1px solid #a855f7; border-radius: 12px; padding: 10px; }
+/* Shield popup */
+.shield-popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: shield-popup-fade 5s ease-out forwards;
+}
+.shield-popup {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(59,130,246,0.25), rgba(15,23,42,0.95));
+  border: 2px solid #60a5fa;
+  border-radius: 20px;
+  padding: 20px 28px;
+  box-shadow: 0 0 40px rgba(96,165,250,0.4);
+  animation: shield-popup-scale 0.4s ease-out;
+}
+.shield-popup-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 3px solid #60a5fa;
+  object-fit: cover;
+}
+.shield-popup-text { text-align: right; }
+@keyframes shield-popup-scale {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes shield-popup-fade {
+  0% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
