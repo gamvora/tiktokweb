@@ -1,6 +1,56 @@
 // Broadcast Screen Overlay Engine with Built-in Admin Drawer & Direct Main Spin Button
 document.addEventListener('DOMContentLoaded', () => {
   const socket = io();
+  const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('tiktok_roulette_sync') : null;
+
+  if (bc) {
+    bc.onmessage = (e) => {
+      const data = e.data;
+      if (!data) return;
+      if (data.type === 'players_updated') {
+        allPlayers = data.players || [];
+        wheel.setPlayers(allPlayers);
+        renderPlayerLists();
+        renderDrawerPlayersTable();
+        updateSpinButtonState();
+      } else if (data.type === 'state_updated') {
+        currentSnapshot = data.snapshot;
+        renderHeader();
+        handleStateVisuals(data.snapshot);
+      } else if (data.type === 'start_spin') {
+        if (data.chosenPlayer) {
+          hideAllModals();
+          setBanner(`🎡 بدأ تدوير الروليت لاختيار: ${data.chosenPlayer.nickname}`);
+          wheel.spinToPlayer(data.chosenPlayer, () => {
+            currentSnapshot.chosenPlayer = data.chosenPlayer;
+            showTurnModal(data.chosenPlayer);
+            setTimeout(() => {
+              if (turnModal) turnModal.classList.remove('active');
+              showTargetSelectionModal(data.chosenPlayer);
+            }, 2400);
+          });
+        }
+      } else if (data.type === 'sim_comment') {
+        if (data.commentText) {
+          const num = parseInt(data.commentText, 10);
+          if (!isNaN(num)) window.selectTargetPlayer(num);
+        }
+      } else if (data.type === 'sim_gift') {
+        renderAll();
+      } else if (data.type === 'settings_updated') {
+        if (currentSnapshot) currentSnapshot.settings = data.settings;
+        applyWheelConfigFromSnapshot();
+        renderHeader();
+        updateGiftsLegend();
+      } else if (data.type === 'tiktok_status') {
+        updateTikTokBadge(data.status);
+      } else if (data.type === 'game_reset') {
+        hideAllModals();
+        renderAll();
+        setBanner('تمت إعادة تعيين اللعبة. في انتظار الانضمام...');
+      }
+    };
+  }
   const wheel = new RouletteWheel('rouletteCanvas');
 
   // DOM Elements - Overlay
@@ -1055,31 +1105,54 @@ document.addEventListener('DOMContentLoaded', () => {
   // TikTok Connect in Drawer
   if (btnDrawerConnect) {
     btnDrawerConnect.addEventListener('click', async () => {
-      const username = drawerTiktokUser.value.trim();
+      const username = drawerTiktokUser.value.trim().replace(/^@/, '');
       if (!username) {
         alert('يرجى إدخال اسم حساب تيك توك صاحب البث');
         return;
       }
       drawerTiktokStatusText.innerHTML = '<span style="color: #f59e0b;">⏳ جاري محاولة الاتصال بالبث المباشر...</span>';
-      try {
-        const res = await fetch('/api/tiktok/connect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username })
-        });
-        const data = await res.json();
-        if (!data.success) {
-          alert('تنبيه: ' + (data.error || 'تأكد من فتح البث المباشر في تيك توك'));
+
+      if (socket && socket.connected) {
+        try {
+          const res = await fetch('/api/tiktok/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+          });
+          const data = await res.json();
+          if (!data.success) {
+            alert('تنبيه: ' + (data.error || 'تأكد من فتح البث المباشر في تيك توك'));
+          }
+        } catch (e) {
+          alert('خطأ: ' + e.message);
         }
-      } catch (e) {
-        alert('خطأ: ' + e.message);
+        return;
       }
+
+      // Client-side Demo Simulator Mode
+      setTimeout(() => {
+        const mockStatus = {
+          status: 'connected',
+          username: username,
+          roomInfo: { title: `بث تجريبي - @${username}`, viewerCount: 150 }
+        };
+        updateTikTokBadge(mockStatus);
+        drawerTiktokStatusText.innerHTML = `<span style="color: #10b981;">✅ متصل بالبث (@${username})</span>`;
+        if (bc) bc.postMessage({ type: 'tiktok_status', status: mockStatus });
+        alert(`✅ تم ربط حساب تيك توك بنجاح في وضع المحاكاة: @${username}`);
+      }, 500);
     });
   }
 
   if (btnDrawerDisconnect) {
     btnDrawerDisconnect.addEventListener('click', async () => {
-      await fetch('/api/tiktok/disconnect', { method: 'POST' });
+      if (socket && socket.connected) {
+        await fetch('/api/tiktok/disconnect', { method: 'POST' });
+      }
+      const mockStatus = { status: 'disconnected', username: null };
+      updateTikTokBadge(mockStatus);
+      drawerTiktokStatusText.innerHTML = `<span style="color: #9ca3af;">⚪ غير متصل بالبث</span>`;
+      if (bc) bc.postMessage({ type: 'tiktok_status', status: mockStatus });
     });
   }
 
@@ -1279,48 +1352,125 @@ document.addEventListener('DOMContentLoaded', () => {
   // Drawer Simulator
   if (btnDrawerMockTen) {
     btnDrawerMockTen.addEventListener('click', async () => {
-      const mockNames = [
-        { name: 'أحمد الصقر', user: 'ahmed_hawk' },
-        { name: 'سارة الملكة', user: 'queen_sara' },
-        { name: 'فهد البطل', user: 'fahad_hero' },
-        { name: 'نورة تيك', user: 'noura_live' },
-        { name: 'عمر القائد', user: 'omar_chief' },
-        { name: 'ريم الرياض', user: 'reem_riyadh' },
-        { name: 'خالد النجم', user: 'khaled_star' },
-        { name: 'منى القمر', user: 'mona_moon' },
-        { name: 'يوسف الفهد', user: 'yousef_leopard' },
-        { name: 'ليلى الدانة', user: 'laila_pearl' }
+      if (socket && socket.connected) {
+        btnDrawerMockTen.disabled = true;
+        btnDrawerMockTen.textContent = 'جاري الإضافة... ⏳';
+        try {
+          const mockNames = [
+            { name: 'محمد 👑', user: 'mohammed_king' },
+            { name: 'سارة ✨', user: 'queen_sara' },
+            { name: 'أحمد ⚡', user: 'ahmed_hawk' },
+            { name: 'فهد 🏎️', user: 'fahad_hero' },
+            { name: 'نورة 🌟', user: 'noura_live' },
+            { name: 'خالد 🚀', user: 'khaled_star' },
+            { name: 'مريم 🌸', user: 'mariam_rose' },
+            { name: 'علي 🔥', user: 'ali_chief' },
+            { name: 'يوسف 🏆', user: 'yousef_leopard' },
+            { name: 'ليلى 💎', user: 'laila_pearl' }
+          ];
+
+          for (const m of mockNames) {
+            await fetch('/api/simulate/join', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                nickname: m.name,
+                uniqueId: m.user,
+                avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${m.user}`
+              })
+            });
+          }
+        } catch (e) {
+          alert('خطأ: ' + e.message);
+        } finally {
+          btnDrawerMockTen.disabled = false;
+          btnDrawerMockTen.textContent = 'إضافة 10 لاعبين تجريبيين 👥';
+        }
+        return;
+      }
+
+      // Client-side 10 Players Simulation
+      const mockList = [
+        { name: 'محمد 👑', user: 'mohammed_king', gift: 'lion', shield: false },
+        { name: 'سارة ✨', user: 'queen_sara', gift: 'heart', shield: true },
+        { name: 'أحمد ⚡', user: 'ahmed_hawk', gift: 'cap', shield: false },
+        { name: 'فهد 🏎️', user: 'fahad_hero', gift: 'car', shield: false },
+        { name: 'نورة 🌟', user: 'noura_live', gift: 'pearl', shield: false },
+        { name: 'خالد 🚀', user: 'khaled_star', gift: 'rocket', shield: false },
+        { name: 'مريم 🌸', user: 'mariam_rose', gift: 'rose', shield: false },
+        { name: 'علي 🔥', user: 'ali_chief', gift: 'trophy', shield: false },
+        { name: 'يوسف 🏆', user: 'yousef_leopard', gift: 'crown', shield: false },
+        { name: 'ليلى 💎', user: 'laila_pearl', gift: 'perfume', shield: false }
       ];
 
-      for (const m of mockNames) {
-        await fetch('/api/simulate/join', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            nickname: m.name,
-            uniqueId: m.user,
-            avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${m.user}`
-          })
-        });
+      allPlayers = mockList.map((m, idx) => ({
+        id: `sim_${Date.now()}_${idx + 1}`,
+        playerNumber: idx + 1,
+        nickname: m.name,
+        uniqueId: m.user,
+        status: m.shield ? 'immune' : 'active',
+        hasShield: m.shield,
+        coins: Math.floor(Math.random() * 50),
+        killsCount: 0,
+        profilePictureUrl: `assets/gifts/${m.gift}.png`
+      }));
+
+      if (currentSnapshot) {
+        currentSnapshot.state = 'READY';
+        currentSnapshot.roundNumber = 1;
       }
+      wheel.setPlayers(allPlayers);
+      renderAll();
+      if (bc) {
+        bc.postMessage({ type: 'players_updated', players: allPlayers });
+        if (currentSnapshot) bc.postMessage({ type: 'state_updated', snapshot: currentSnapshot });
+      }
+      alert('✅ تمت إضافة 10 لاعبين بنجاح! تم تحديث العجلة فوراً.');
     });
   }
 
   if (btnSimDrawerJoin) {
     btnSimDrawerJoin.addEventListener('click', async () => {
-      const u = simDrawerJoinUser.value.trim() || `user_${Date.now() % 1000}`;
+      const u = simDrawerJoinUser.value.trim().replace(/^@/, '') || `user_${Date.now() % 1000}`;
       const n = simDrawerJoinNick.value.trim() || u;
-      await fetch('/api/simulate/join', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nickname: n,
-          uniqueId: u,
-          avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${u}`
-        })
-      });
+
+      if (socket && socket.connected) {
+        await fetch('/api/simulate/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nickname: n,
+            uniqueId: u,
+            avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${u}`
+          })
+        });
+        simDrawerJoinNick.value = '';
+        simDrawerJoinUser.value = '';
+        return;
+      }
+
+      // Client-side Sim Join
+      const nextNum = allPlayers.length > 0 ? Math.max(...allPlayers.map(p => p.playerNumber || 0)) + 1 : 1;
+      const gifts = ['lion', 'heart', 'cap', 'rocket', 'rose', 'trophy', 'pearl', 'car'];
+      const newP = {
+        id: `p_${Date.now()}`,
+        playerNumber: nextNum,
+        nickname: n,
+        uniqueId: u,
+        status: 'active',
+        hasShield: false,
+        coins: 0,
+        killsCount: 0,
+        profilePictureUrl: `assets/gifts/${gifts[nextNum % gifts.length]}.png`
+      };
+
+      allPlayers.push(newP);
+      wheel.setPlayers(allPlayers);
+      renderAll();
+      if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers });
       simDrawerJoinNick.value = '';
       simDrawerJoinUser.value = '';
+      alert(`✅ انضم اللاعب: ${n} (#${nextNum})`);
     });
   }
 
@@ -1330,11 +1480,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const commentText = simDrawerCommentText.value.trim();
       if (!commentText) return;
 
-      await fetch('/api/simulate/comment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uniqueId, commentText })
-      });
+      if (socket && socket.connected) {
+        await fetch('/api/simulate/comment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uniqueId, commentText })
+        });
+        simDrawerCommentText.value = '';
+        adminDrawerModal.classList.remove('active');
+        return;
+      }
+
+      // Client-side Target Select by comment
+      const targetNum = parseInt(commentText, 10);
+      if (!isNaN(targetNum)) {
+        window.selectTargetPlayer(targetNum);
+      }
       simDrawerCommentText.value = '';
       adminDrawerModal.classList.remove('active');
     });

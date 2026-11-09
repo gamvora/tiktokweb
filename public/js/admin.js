@@ -147,6 +147,15 @@ document.addEventListener('DOMContentLoaded', () => {
     updateTikTokStatus(status);
   });
 
+  const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('tiktok_roulette_sync') : null;
+
+  function saveDemoState() {
+    try {
+      localStorage.setItem('tiktok_demo_players', JSON.stringify(allPlayers));
+      localStorage.setItem('tiktok_demo_snapshot', JSON.stringify(stateSnapshot));
+    } catch (e) {}
+  }
+
   socket.on('activity_log', (entry) => {
     appendLogEntry(entry);
   });
@@ -156,30 +165,61 @@ document.addEventListener('DOMContentLoaded', () => {
   // -------------------------------------------------------------
 
   btnConnectTikTok.addEventListener('click', async () => {
-    const username = tiktokUsernameInput.value.trim();
+    const username = tiktokUsernameInput.value.trim().replace(/^@/, '');
     if (!username) {
       alert('يرجى كتابة اسم حساب تيك توك صاحب البث');
       return;
     }
 
-    tiktokStatusText.textContent = 'جاري الاتصال... ⏳';
-    try {
-      const res = await fetch('/api/tiktok/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username })
-      });
-      const data = await res.json();
-      if (!data.success) {
-        alert('خطأ في الاتصال: ' + (data.error || 'تأكد من فتح البث المباشر واسم المستخدم'));
+    tiktokStatusText.innerHTML = `<span style="color: #f59e0b;">⏳ جاري محاولة الاتصال بـ @${username}...</span>`;
+
+    if (socket && socket.connected) {
+      try {
+        const res = await fetch('/api/tiktok/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username })
+        });
+        const data = await res.json();
+        if (!data.success) {
+          alert('خطأ في الاتصال: ' + (data.error || 'تأكد من فتح البث المباشر واسم المستخدم'));
+        }
+      } catch (err) {
+        alert('فشل الاتصال: ' + err.message);
       }
-    } catch (err) {
-      alert('فشل الاتصال: ' + err.message);
+      return;
     }
+
+    // Client-side / GitHub Pages Simulator Mode (Zero-Error)
+    setTimeout(() => {
+      const mockStatus = {
+        status: 'connected',
+        username: username,
+        roomInfo: { title: `بث تيك توك التجريبي - @${username}`, viewerCount: Math.floor(Math.random() * 200) + 50 }
+      };
+      updateTikTokStatus(mockStatus);
+      if (bc) bc.postMessage({ type: 'tiktok_status', status: mockStatus });
+      appendLogEntry({
+        timestamp: new Date().toISOString(),
+        type: 'TIKTOK_CONNECTED',
+        message: `🟢 تم ربط حساب تيك توك بنجاح في وضع المحاكاة: @${username}`
+      });
+      alert(`✅ تم ربط حساب تيك توك بنجاح في وضع المحاكاة: @${username}\n(يمكنك الآن تجربة إرسال التعليقات والهدايا واللاعبين من المحاكي بالأسفل!)`);
+    }, 500);
   });
 
   btnDisconnectTikTok.addEventListener('click', async () => {
-    await fetch('/api/tiktok/disconnect', { method: 'POST' });
+    if (socket && socket.connected) {
+      await fetch('/api/tiktok/disconnect', { method: 'POST' });
+    }
+    const mockStatus = { status: 'disconnected', username: null };
+    updateTikTokStatus(mockStatus);
+    if (bc) bc.postMessage({ type: 'tiktok_status', status: mockStatus });
+    appendLogEntry({
+      timestamp: new Date().toISOString(),
+      type: 'TIKTOK_DISCONNECTED',
+      message: '⚪ تم قطع الاتصال بالبث'
+    });
   });
 
   function updateTikTokStatus(status) {
@@ -215,56 +255,176 @@ document.addEventListener('DOMContentLoaded', () => {
   // -------------------------------------------------------------
 
   btnStartRoulette.addEventListener('click', async () => {
-    try {
-      const res = await fetch('/api/control/roulette/start', { method: 'POST' });
-      const data = await res.json();
-      if (!data.success) {
-        alert(data.reason || 'تعذر بدء الروليت');
+    if (socket && socket.connected) {
+      try {
+        const res = await fetch('/api/control/roulette/start', { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) {
+          alert(data.reason || 'تعذر بدء الروليت');
+        }
+      } catch (e) {
+        alert(e.message);
       }
-    } catch (e) {
-      alert(e.message);
+      return;
     }
+
+    // Client-side execution
+    const active = allPlayers.filter(p => p.status === 'active' || p.status === 'immune');
+    if (active.length < 2) {
+      alert('يجب أن يكون هناك لاعبان نشطان على الأقل لبدء الروليت!');
+      return;
+    }
+    const chosen = active[Math.floor(Math.random() * active.length)];
+    if (stateSnapshot) {
+      stateSnapshot.chosenPlayer = chosen;
+      stateSnapshot.state = 'SELECTED_PLAYER';
+    }
+    updateStatusSummary();
+    appendLogEntry({
+      timestamp: new Date().toISOString(),
+      type: 'ROULETTE_START',
+      message: `🎡 بدأ تدوير الروليت واختيار ${chosen.nickname} (#${chosen.playerNumber})`
+    });
+    if (bc) bc.postMessage({ type: 'start_spin', chosenPlayer: chosen });
+    alert(`🎡 تم إرسال أمر بدء الروليت لشاشة البث! تم اختيار: ${chosen.nickname}`);
   });
 
   btnToggleJoin.addEventListener('click', async () => {
-    const res = await fetch('/api/control/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-    const data = await res.json();
-    btnToggleJoin.textContent = data.isJoinOpen ? '🔒 إغلاق باب الانضمام' : '🔓 فتح باب الانضمام';
+    if (socket && socket.connected) {
+      const res = await fetch('/api/control/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      const data = await res.json();
+      btnToggleJoin.textContent = data.isJoinOpen ? '🔒 إغلاق باب الانضمام' : '🔓 فتح باب الانضمام';
+      return;
+    }
+    if (settings) {
+      settings.isJoinOpen = !settings.isJoinOpen;
+      btnToggleJoin.textContent = settings.isJoinOpen ? '🔒 إغلاق باب الانضمام' : '🔓 فتح باب الانضمام';
+      saveDemoState();
+      if (bc) bc.postMessage({ type: 'settings_updated', settings });
+      appendLogEntry({
+        timestamp: new Date().toISOString(),
+        type: 'JOIN_TOGGLED',
+        message: settings.isJoinOpen ? '🔓 تم فتح باب الانضمام' : '🔒 تم إغلاق باب الانضمام'
+      });
+    }
   });
 
   btnNextRound.addEventListener('click', async () => {
-    await fetch('/api/control/round/next', { method: 'POST' });
+    if (socket && socket.connected) {
+      await fetch('/api/control/round/next', { method: 'POST' });
+      return;
+    }
+    if (stateSnapshot) {
+      stateSnapshot.roundNumber = (stateSnapshot.roundNumber || 1) + 1;
+      stateSnapshot.chosenPlayer = null;
+      stateSnapshot.targetPlayer = null;
+      stateSnapshot.state = 'READY';
+      updateStatusSummary();
+      saveDemoState();
+      if (bc) bc.postMessage({ type: 'state_updated', snapshot: stateSnapshot });
+      appendLogEntry({
+        timestamp: new Date().toISOString(),
+        type: 'ROUND_NEXT',
+        message: `🔄 بدأت الجولة #${stateSnapshot.roundNumber}`
+      });
+      alert(`🔄 بدأت الجولة #${stateSnapshot.roundNumber}`);
+    }
   });
 
   btnFinalRound.addEventListener('click', async () => {
     if (confirm('هل تريد بدء مرحلة الحسم النهائي (Final Round) الآن؟')) {
-      await fetch('/api/control/round/final', { method: 'POST' });
+      if (socket && socket.connected) {
+        await fetch('/api/control/round/final', { method: 'POST' });
+        return;
+      }
+      if (stateSnapshot) {
+        stateSnapshot.state = 'FINAL_ROUND';
+        updateStatusSummary();
+        saveDemoState();
+        if (bc) bc.postMessage({ type: 'state_updated', snapshot: stateSnapshot });
+        appendLogEntry({
+          timestamp: new Date().toISOString(),
+          type: 'FINAL_ROUND',
+          message: '🚀 بدأت مرحلة الحسم النهائي!'
+        });
+      }
     }
   });
 
   btnCancelElimination.addEventListener('click', async () => {
-    await fetch('/api/control/elimination/cancel', { method: 'POST' });
+    if (socket && socket.connected) {
+      await fetch('/api/control/elimination/cancel', { method: 'POST' });
+      return;
+    }
+    if (stateSnapshot) {
+      stateSnapshot.state = 'READY';
+      stateSnapshot.targetPlayer = null;
+      updateStatusSummary();
+      saveDemoState();
+      if (bc) bc.postMessage({ type: 'state_updated', snapshot: stateSnapshot });
+      appendLogEntry({
+        timestamp: new Date().toISOString(),
+        type: 'ELIM_CANCEL',
+        message: '🛡️ تم إلغاء الإقصاء'
+      });
+    }
   });
 
   btnPauseTimer.addEventListener('click', async () => {
-    await fetch('/api/control/timer/pause', { method: 'POST' });
+    if (socket && socket.connected) {
+      await fetch('/api/control/timer/pause', { method: 'POST' });
+    }
   });
 
   btnResumeTimer.addEventListener('click', async () => {
-    await fetch('/api/control/timer/resume', { method: 'POST' });
+    if (socket && socket.connected) {
+      await fetch('/api/control/timer/resume', { method: 'POST' });
+    }
   });
 
   btnExtendTimer.addEventListener('click', async () => {
-    await fetch('/api/control/timer/extend', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seconds: 15 })
-    });
+    if (socket && socket.connected) {
+      await fetch('/api/control/timer/extend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seconds: 15 })
+      });
+    } else {
+      appendLogEntry({
+        timestamp: new Date().toISOString(),
+        type: 'TIMER_EXTEND',
+        message: '⏳ تم تمديد المؤقت بـ 15 ثانية'
+      });
+    }
   });
 
   btnResetGame.addEventListener('click', async () => {
     if (confirm('تحذير: هل أنت متأكد من رغبتك في إعادة تعيين اللعبة ومسح جميع اللاعبين؟')) {
-      await fetch('/api/control/game/reset', { method: 'POST' });
+      if (socket && socket.connected) {
+        await fetch('/api/control/game/reset', { method: 'POST' });
+        return;
+      }
+      allPlayers = [];
+      if (stateSnapshot) {
+        stateSnapshot.state = 'WAITING_FOR_PLAYERS';
+        stateSnapshot.roundNumber = 1;
+        stateSnapshot.chosenPlayer = null;
+        stateSnapshot.targetPlayer = null;
+        stateSnapshot.winner = null;
+      }
+      updateUI();
+      saveDemoState();
+      if (bc) {
+        bc.postMessage({ type: 'players_updated', players: [] });
+        bc.postMessage({ type: 'state_updated', snapshot: stateSnapshot });
+        bc.postMessage({ type: 'game_reset' });
+      }
+      appendLogEntry({
+        timestamp: new Date().toISOString(),
+        type: 'GAME_RESET',
+        message: '🧹 تمت إعادة تعيين اللعبة ومسح جميع اللاعبين'
+      });
+      alert('🧹 تمت إعادة تعيين اللعبة بنجاح');
     }
   });
 
@@ -273,46 +433,141 @@ document.addEventListener('DOMContentLoaded', () => {
   // -------------------------------------------------------------
 
   btnMockTenPlayers.addEventListener('click', async () => {
-    const mockNames = [
-      { name: 'أحمد الصقر', user: 'ahmed_hawk' },
-      { name: 'سارة الملكة', user: 'queen_sara' },
-      { name: 'فهد البطل', user: 'fahad_hero' },
-      { name: 'نورة تيك', user: 'noura_live' },
-      { name: 'عمر القائد', user: 'omar_chief' },
-      { name: 'ريم الرياض', user: 'reem_riyadh' },
-      { name: 'خالد النجم', user: 'khaled_star' },
-      { name: 'منى القمر', user: 'mona_moon' },
-      { name: 'يوسف الفهد', user: 'yousef_leopard' },
-      { name: 'ليلى الدانة', user: 'laila_pearl' }
+    if (socket && socket.connected) {
+      btnMockTenPlayers.disabled = true;
+      btnMockTenPlayers.textContent = 'جاري الإضافة... ⏳';
+      try {
+        const mockNames = [
+          { name: 'محمد 👑', user: 'mohammed_king' },
+          { name: 'سارة ✨', user: 'queen_sara' },
+          { name: 'أحمد ⚡', user: 'ahmed_hawk' },
+          { name: 'فهد 🏎️', user: 'fahad_hero' },
+          { name: 'نورة 🌟', user: 'noura_live' },
+          { name: 'خالد 🚀', user: 'khaled_star' },
+          { name: 'مريم 🌸', user: 'mariam_rose' },
+          { name: 'علي 🔥', user: 'ali_chief' },
+          { name: 'يوسف 🏆', user: 'yousef_leopard' },
+          { name: 'ليلى 💎', user: 'laila_pearl' }
+        ];
+
+        for (const mock of mockNames) {
+          await fetch('/api/simulate/join', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              nickname: mock.name,
+              uniqueId: mock.user,
+              avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${mock.user}`
+            })
+          });
+        }
+      } catch (e) {
+        alert('خطأ: ' + e.message);
+      } finally {
+        btnMockTenPlayers.disabled = false;
+        btnMockTenPlayers.textContent = 'إضافة 10 لاعبين تجريبيين 👥';
+      }
+      return;
+    }
+
+    // Client-side 10 players simulation
+    const mockList = [
+      { name: 'محمد 👑', user: 'mohammed_king', gift: 'lion', shield: false },
+      { name: 'سارة ✨', user: 'queen_sara', gift: 'heart', shield: true },
+      { name: 'أحمد ⚡', user: 'ahmed_hawk', gift: 'cap', shield: false },
+      { name: 'فهد 🏎️', user: 'fahad_hero', gift: 'car', shield: false },
+      { name: 'نورة 🌟', user: 'noura_live', gift: 'pearl', shield: false },
+      { name: 'خالد 🚀', user: 'khaled_star', gift: 'rocket', shield: false },
+      { name: 'مريم 🌸', user: 'mariam_rose', gift: 'rose', shield: false },
+      { name: 'علي 🔥', user: 'ali_chief', gift: 'trophy', shield: false },
+      { name: 'يوسف 🏆', user: 'yousef_leopard', gift: 'crown', shield: false },
+      { name: 'ليلى 💎', user: 'laila_pearl', gift: 'perfume', shield: false }
     ];
 
-    for (const mock of mockNames) {
+    allPlayers = mockList.map((m, idx) => ({
+      id: `sim_${Date.now()}_${idx + 1}`,
+      playerNumber: idx + 1,
+      nickname: m.name,
+      uniqueId: m.user,
+      status: m.shield ? 'immune' : 'active',
+      hasShield: m.shield,
+      coins: Math.floor(Math.random() * 50),
+      killsCount: 0,
+      profilePictureUrl: `assets/gifts/${m.gift}.png`
+    }));
+
+    if (stateSnapshot) {
+      stateSnapshot.state = 'READY';
+      stateSnapshot.roundNumber = 1;
+    }
+    updateUI();
+    saveDemoState();
+    if (bc) {
+      bc.postMessage({ type: 'players_updated', players: allPlayers });
+      if (stateSnapshot) bc.postMessage({ type: 'state_updated', snapshot: stateSnapshot });
+    }
+    appendLogEntry({
+      timestamp: new Date().toISOString(),
+      type: 'SIM_MOCK_TEN',
+      message: '👥 تمت إضافة 10 لاعبين تجريبيين بنجاح في المحاكي!'
+    });
+    alert('✅ تمت إضافة 10 لاعبين بنجاح! انتقل لشاشة العرض (Overlay) وستجدهم على العجلة فوراً.');
+  });
+
+  btnSimJoin.addEventListener('click', async () => {
+    const u = simJoinUsername.value.trim().replace(/^@/, '') || `user_${Date.now() % 1000}`;
+    const n = simJoinNickname.value.trim() || u;
+
+    if (socket && socket.connected) {
       await fetch('/api/simulate/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nickname: mock.name,
-          uniqueId: mock.user,
-          avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${mock.user}`
+          nickname: n,
+          uniqueId: u,
+          avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${u}`
         })
       });
+      simJoinUsername.value = '';
+      simJoinNickname.value = '';
+      return;
     }
-  });
 
-  btnSimJoin.addEventListener('click', async () => {
-    const u = simJoinUsername.value.trim() || `user_${Date.now() % 1000}`;
-    const n = simJoinNickname.value.trim() || u;
-    await fetch('/api/simulate/join', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nickname: n,
-        uniqueId: u,
-        avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${u}`
-      })
+    // Client-side Sim Join
+    const nextNum = allPlayers.length > 0 ? Math.max(...allPlayers.map(p => p.playerNumber || 0)) + 1 : 1;
+    const gifts = ['lion', 'heart', 'cap', 'rocket', 'rose', 'trophy', 'pearl', 'car'];
+    const randomGift = gifts[nextNum % gifts.length];
+
+    const newP = {
+      id: `p_${Date.now()}`,
+      playerNumber: nextNum,
+      nickname: n,
+      uniqueId: u,
+      status: 'active',
+      hasShield: false,
+      coins: 0,
+      killsCount: 0,
+      profilePictureUrl: `assets/gifts/${randomGift}.png`
+    };
+
+    allPlayers.push(newP);
+    if (stateSnapshot && stateSnapshot.state === 'WAITING_FOR_PLAYERS' && allPlayers.length >= 2) {
+      stateSnapshot.state = 'READY';
+    }
+    updateUI();
+    saveDemoState();
+    if (bc) {
+      bc.postMessage({ type: 'players_updated', players: allPlayers });
+      if (stateSnapshot) bc.postMessage({ type: 'state_updated', snapshot: stateSnapshot });
+    }
+    appendLogEntry({
+      timestamp: new Date().toISOString(),
+      type: 'PLAYER_JOINED',
+      message: `➕ انضم اللاعب ${n} برقم #${nextNum}`
     });
     simJoinUsername.value = '';
     simJoinNickname.value = '';
+    alert(`✅ انضم اللاعب: ${n} (#${nextNum})`);
   });
 
   btnSimComment.addEventListener('click', async () => {
@@ -320,12 +575,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const commentText = simCommentText.value.trim();
     if (!commentText) return;
 
-    await fetch('/api/simulate/comment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uniqueId, commentText })
+    if (socket && socket.connected) {
+      await fetch('/api/simulate/comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uniqueId, commentText })
+      });
+      simCommentText.value = '';
+      return;
+    }
+
+    appendLogEntry({
+      timestamp: new Date().toISOString(),
+      type: 'COMMENT',
+      message: `💬 تعليق من @${uniqueId}: ${commentText}`
     });
+    if (bc) bc.postMessage({ type: 'sim_comment', uniqueId, commentText });
     simCommentText.value = '';
+    alert(`💬 تم إرسال التعليق من @${uniqueId}: "${commentText}"`);
   });
 
   // Quick helper to write chosen player's target number
@@ -334,14 +601,12 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('يجب تشغيل الروليت واختيار لاعب أولاً!');
       return;
     }
-    // Set comment user to chosen player
     simCommentUser.value = stateSnapshot.chosenPlayer.uniqueId;
 
-    // Pick first eligible active player that is not the chosen one
     const eligible = allPlayers.filter(p =>
-      p.status === 'active' &&
+      (p.status === 'active' || p.status === 'immune') &&
       p.id !== stateSnapshot.chosenPlayer.id &&
-      !p.hasShield
+      !p.hasShield && p.status !== 'immune'
     );
 
     if (eligible.length > 0) {
@@ -355,12 +620,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('[data-sim-gift]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const giftType = btn.dataset.simGift;
-      let uniqueId = simCommentUser.value;
+      let uniqueId = simCommentUser.value || (allPlayers[0] && allPlayers[0].uniqueId) || 'user_1';
       let giftName = 'وردة';
       let coins = 1;
 
       if (giftType === 'defense') {
-        // Target defending themselves
         if (stateSnapshot?.targetPlayer) {
           uniqueId = stateSnapshot.targetPlayer.uniqueId;
         }
@@ -382,11 +646,38 @@ document.addEventListener('DOMContentLoaded', () => {
         coins = settings?.gifts?.finalRound?.minCoins || 100;
       }
 
-      await fetch('/api/simulate/gift', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uniqueId, giftName, coins, repeatCount: 1 })
+      if (socket && socket.connected) {
+        await fetch('/api/simulate/gift', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uniqueId, giftName, coins, repeatCount: 1 })
+        });
+        return;
+      }
+
+      // Client-side Gift handling
+      const p = allPlayers.find(x => x.uniqueId === uniqueId);
+      if (p) {
+        p.coins = (p.coins || 0) + coins;
+        if (giftType === 'shield') {
+          p.hasShield = true;
+          p.status = 'immune';
+        } else if (giftType === 'rejoin' && p.status === 'eliminated') {
+          p.status = 'active';
+        }
+      }
+      updateUI();
+      saveDemoState();
+      appendLogEntry({
+        timestamp: new Date().toISOString(),
+        type: 'GIFT',
+        message: `🎁 أرسل @${uniqueId} هدية [${giftName}] بقيمة ${coins} عملة!`
       });
+      if (bc) {
+        bc.postMessage({ type: 'players_updated', players: allPlayers });
+        bc.postMessage({ type: 'sim_gift', uniqueId, giftName, coins });
+      }
+      alert(`🎁 تم إرسال هدية [${giftName}] من @${uniqueId}`);
     });
   });
 
@@ -414,12 +705,19 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    });
-    alert('تم حفظ الإعدادات بنجاح!');
+    if (socket && socket.connected) {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      });
+    } else {
+      settings = { ...settings, ...updated };
+      if (stateSnapshot) stateSnapshot.settings = settings;
+      saveDemoState();
+      if (bc) bc.postMessage({ type: 'settings_updated', settings });
+    }
+    alert('✅ تم حفظ الإعدادات بنجاح!');
   });
 
   function populateSettingsForm() {
@@ -442,16 +740,37 @@ document.addEventListener('DOMContentLoaded', () => {
   addPlayerForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const nickname = addNickname.value.trim();
-    const uniqueId = addUniqueId.value.trim();
+    const uniqueId = addUniqueId.value.trim().replace(/^@/, '');
     const playerNumber = addPlayerNumber.value ? parseInt(addPlayerNumber.value, 10) : null;
 
     if (!nickname) return;
 
-    await fetch('/api/players/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nickname, uniqueId, playerNumber })
-    });
+    if (socket && socket.connected) {
+      await fetch('/api/players/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname, uniqueId, playerNumber })
+      });
+    } else {
+      const assigned = playerNumber || (allPlayers.length > 0 ? Math.max(...allPlayers.map(p => p.playerNumber || 0)) + 1 : 1);
+      const gifts = ['lion', 'heart', 'cap', 'rocket', 'rose', 'trophy', 'pearl', 'car'];
+      const newP = {
+        id: `p_${Date.now()}`,
+        playerNumber: assigned,
+        nickname: nickname,
+        uniqueId: uniqueId || `user_${assigned}`,
+        status: 'active',
+        hasShield: false,
+        coins: 0,
+        killsCount: 0,
+        profilePictureUrl: `assets/gifts/${gifts[assigned % gifts.length]}.png`
+      };
+      allPlayers.push(newP);
+      updateUI();
+      saveDemoState();
+      if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers });
+      alert(`✅ تمت إضافة اللاعب ${nickname} (#${assigned}) بنجاح!`);
+    }
 
     addNickname.value = '';
     addUniqueId.value = '';
@@ -500,33 +819,70 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   window.deletePlayer = async (id) => {
-    if (confirm('هل أنت متأكد من حذف هذا اللاعب؟')) {
+    if (!confirm('هل أنت متأكد من حذف هذا اللاعب؟')) return;
+    if (socket && socket.connected) {
       await fetch(`/api/players/${id}`, { method: 'DELETE' });
+      return;
     }
+    allPlayers = allPlayers.filter(p => p.id !== id);
+    updateUI();
+    saveDemoState();
+    if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers });
   };
 
   window.revivePlayer = async (id) => {
-    await fetch(`/api/players/${id}/revive`, { method: 'POST' });
+    if (socket && socket.connected) {
+      await fetch(`/api/players/${id}/revive`, { method: 'POST' });
+      return;
+    }
+    const p = allPlayers.find(x => x.id === id);
+    if (p) {
+      p.status = 'active';
+      updateUI();
+      saveDemoState();
+      if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers });
+    }
   };
 
   window.toggleShield = async (id, hasShield) => {
-    await fetch(`/api/players/${id}/shield`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hasShield, rounds: 1 })
-    });
+    if (socket && socket.connected) {
+      await fetch(`/api/players/${id}/shield`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hasShield, rounds: 1 })
+      });
+      return;
+    }
+    const p = allPlayers.find(x => x.id === id);
+    if (p) {
+      p.hasShield = hasShield;
+      p.status = hasShield ? 'immune' : 'active';
+      updateUI();
+      saveDemoState();
+      if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers });
+    }
   };
 
   window.promptChangeNum = async (id) => {
     const newNum = prompt('أدخل رقم اللاعب الجديد:');
-    if (newNum) {
+    if (!newNum || isNaN(newNum)) return;
+    const num = parseInt(newNum, 10);
+    if (socket && socket.connected) {
       const res = await fetch(`/api/players/${id}/number`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerNumber: newNum })
+        body: JSON.stringify({ playerNumber: num })
       });
       const data = await res.json();
       if (!data.success) alert(data.reason);
+      return;
+    }
+    const p = allPlayers.find(x => x.id === id);
+    if (p) {
+      p.playerNumber = num;
+      updateUI();
+      saveDemoState();
+      if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers });
     }
   };
 
@@ -733,12 +1089,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const showPlayerNames = adminWheelShowNames ? adminWheelShowNames.checked : true;
 
       const wheelConfig = { theme, spinDuration, showPlayerAvatars, showPlayerNames };
-      await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wheelConfig })
-      });
-      alert('تم تحديث وتطبيق شكل العجلة بنجاح! 🎡');
+      if (socket && socket.connected) {
+        await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wheelConfig })
+        });
+      } else {
+        if (settings) settings.wheelConfig = wheelConfig;
+        if (stateSnapshot) stateSnapshot.settings = settings;
+        saveDemoState();
+        if (bc) bc.postMessage({ type: 'settings_updated', settings });
+      }
+      alert('✅ تم تحديث وتطبيق شكل العجلة بنجاح! 🎡');
     });
   }
 
