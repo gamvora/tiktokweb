@@ -1,6 +1,70 @@
-// Broadcast Screen Overlay Engine with Built-in Admin Drawer & Direct Main Spin Button
+// ═══════════════════════════════════════════════════════════════
+// روليت تيك توك لايف - شاشة البث الرئيسية
+// يتصل تلقائياً بالـ backend على Railway أو يعمل في وضع Demo
+// ═══════════════════════════════════════════════════════════════
+
+// ── تحديد عنوان الـ backend ─────────────────────────────────
+// إذا كان الموقع يعمل محلياً، يتصل بـ localhost
+// إذا كان على Vercel، يقرأ عنوان Railway من المتغير المضمّن في الكود
+// تغيير هذا السطر بعنوان Railway الخاص بك!
+const BACKEND_URL = window.BACKEND_URL || 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? `${window.location.protocol}//${window.location.hostname}:3001`
+    : window.__RAILWAY_URL__ || '');
+
+// ── تهيئة Socket.IO آمنة (لا تكسر الصفحة إذا فشل الاتصال) ─
+let socket = null;
+let socketConnected = false;
+
+function initSocket() {
+  if (!BACKEND_URL || typeof io === 'undefined') {
+    console.log('[Overlay] Socket.IO غير متاح - وضع Demo مفعّل');
+    startDemoMode();
+    return;
+  }
+
+  try {
+    socket = io(BACKEND_URL, {
+      transports: ['websocket', 'polling'],
+      timeout: 8000,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000
+    });
+
+    socket.on('connect', () => {
+      console.log('[Overlay] ✅ متصل بالـ backend:', BACKEND_URL);
+      socketConnected = true;
+      if (tiktokBadgeEl) {
+        tiktokBadgeEl.textContent = '🔗 متصل بالخادم';
+        tiktokBadgeEl.style.borderColor = 'rgba(16,185,129,0.4)';
+      }
+    });
+
+    socket.on('connect_error', (err) => {
+      console.warn('[Overlay] فشل الاتصال بالخادم:', err.message);
+    });
+
+    socket.on('disconnect', () => {
+      socketConnected = false;
+    });
+
+    // إذا لم يتصل في 6 ثوان، شغّل وضع Demo
+    setTimeout(() => {
+      if (!socketConnected && !currentSnapshot) {
+        console.log('[Overlay] لم يتصل بالخادم - تشغيل وضع Demo');
+        startDemoMode();
+      }
+    }, 6000);
+
+    setupSocketEvents();
+  } catch (e) {
+    console.error('[Overlay] خطأ في تهيئة Socket.IO:', e);
+    startDemoMode();
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-  const socket = io();
+  // إنشاء BroadcastChannel للتواصل مع نافذة Admin في نفس المتصفح
   const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('tiktok_roulette_sync') : null;
 
   if (bc) {
@@ -22,10 +86,12 @@ document.addEventListener('DOMContentLoaded', () => {
           hideAllModals();
           setBanner(`🎡 بدأ تدوير الروليت لاختيار: ${data.chosenPlayer.nickname}`);
           wheel.spinToPlayer(data.chosenPlayer, () => {
+            currentSnapshot = currentSnapshot || {};
             currentSnapshot.chosenPlayer = data.chosenPlayer;
             showTurnModal(data.chosenPlayer);
             setTimeout(() => {
               if (turnModal) turnModal.classList.remove('active');
+              currentSnapshot.state = 'SELECTING_TARGET';
               showTargetSelectionModal(data.chosenPlayer);
             }, 2400);
           });
@@ -51,9 +117,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
   }
+
   const wheel = new RouletteWheel('rouletteCanvas');
 
-  // DOM Elements - Overlay
+  // ── DOM Elements ─────────────────────────────────────────
   const activePlayersList = document.getElementById('activePlayersList');
   const eliminatedPlayersList = document.getElementById('eliminatedPlayersList');
   const activeCountEl = document.getElementById('activeCount');
@@ -68,13 +135,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnToggleSound = document.getElementById('btnToggleSound');
   const btnOpenAdminDrawer = document.getElementById('btnOpenAdminDrawer');
   const btnMainSpinRoulette = document.getElementById('btnMainSpinRoulette');
-
-  // Join Instructions Card (قبل بدء اللعبة)
   const joinInstructionsCard = document.getElementById('joinInstructionsCard');
   const joinKeywordHighlight = document.getElementById('joinKeywordHighlight');
 
-  // Gifts Legend Box Elements (مربع الهدايا على الجانب)
-  const giftsLegendBox = document.getElementById('giftsLegendBox');
+  // Gifts Legend
   const legendDefImg = document.getElementById('legendDefImg');
   const legendDefText = document.getElementById('legendDefText');
   const legendShieldImg = document.getElementById('legendShieldImg');
@@ -84,13 +148,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const legendFinalImg = document.getElementById('legendFinalImg');
   const legendFinalText = document.getElementById('legendFinalText');
 
-  // Modals - Overlay
+  // Modals
   const turnModal = document.getElementById('turnModal');
   const turnAvatar = document.getElementById('turnAvatar');
   const turnPlayerNum = document.getElementById('turnPlayerNum');
   const turnPlayerName = document.getElementById('turnPlayerName');
-
-  // ★ Target Selection Modal & Player Grid Elements ★
   const targetSelectionModal = document.getElementById('targetSelectionModal');
   const tsChooserAvatar = document.getElementById('tsChooserAvatar');
   const tsChooserNum = document.getElementById('tsChooserNum');
@@ -98,8 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const tsTimerProgress = document.getElementById('tsTimerProgress');
   const tsTimerDigits = document.getElementById('tsTimerDigits');
   const tsPlayerGrid = document.getElementById('tsPlayerGrid');
-
-  // Confrontation Modal
   const confrontationModal = document.getElementById('confrontationModal');
   const selectorAvatar = document.getElementById('selectorAvatar');
   const selectorName = document.getElementById('selectorName');
@@ -109,8 +169,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const targetNum = document.getElementById('targetNum');
   const defenseGiftText = document.getElementById('defenseGiftText');
   const defenseGiftImg = document.getElementById('defenseGiftImg');
-
-  // ★ Dedicated Elimination Modal Elements ★
   const eliminationModal = document.getElementById('eliminationModal');
   const elimPlayerAvatar = document.getElementById('elimPlayerAvatar');
   const elimPlayerNum = document.getElementById('elimPlayerNum');
@@ -122,23 +180,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const elimByNum = document.getElementById('elimByNum');
   const elimRejoinImg = document.getElementById('elimRejoinImg');
   const elimRejoinDetail = document.getElementById('elimRejoinDetail');
-
-  // Winner Modal Elements
   const winnerModal = document.getElementById('winnerModal');
   const winnerAvatar = document.getElementById('winnerAvatar');
   const winnerName = document.getElementById('winnerName');
   const winnerUser = document.getElementById('winnerUser');
   const winnerNum = document.getElementById('winnerNum');
-
   const resultModal = document.getElementById('resultModal');
   const resultTitle = document.getElementById('resultTitle');
   const resultSubtitle = document.getElementById('resultSubtitle');
   const resultIcon = document.getElementById('resultIcon');
-
   const timerCircleProgress = document.getElementById('timerCircleProgress');
   const timerDigits = document.getElementById('timerDigits');
 
-  // Admin Drawer Elements
+  // Admin Drawer
   const adminDrawerModal = document.getElementById('adminDrawerModal');
   const btnCloseAdminDrawer = document.getElementById('btnCloseAdminDrawer');
   const drawerStateBadge = document.getElementById('drawerStateBadge');
@@ -149,8 +203,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerTiktokStatusText = document.getElementById('drawerTiktokStatusText');
   const drawerWebhookUrl = document.getElementById('drawerWebhookUrl');
   const btnCopyWebhook = document.getElementById('btnCopyWebhook');
-
-  // Drawer Controls
   const btnDrawerToggleJoin = document.getElementById('btnDrawerToggleJoin');
   const btnDrawerNextRound = document.getElementById('btnDrawerNextRound');
   const btnDrawerFinalRound = document.getElementById('btnDrawerFinalRound');
@@ -159,18 +211,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDrawerResumeTimer = document.getElementById('btnDrawerResumeTimer');
   const btnDrawerExtendTimer = document.getElementById('btnDrawerExtendTimer');
   const btnDrawerResetGame = document.getElementById('btnDrawerResetGame');
-
-  // Drawer Gift Configuration
   const giftConfigContainer = document.getElementById('giftConfigContainer');
-
-  // Drawer Wheel Customization
   const wheelThemeSelect = document.getElementById('wheelThemeSelect');
   const wheelSpinDuration = document.getElementById('wheelSpinDuration');
   const wheelShowAvatars = document.getElementById('wheelShowAvatars');
   const wheelShowNames = document.getElementById('wheelShowNames');
   const btnApplyWheelConfig = document.getElementById('btnApplyWheelConfig');
-
-  // Drawer Simulator
   const btnDrawerMockTen = document.getElementById('btnDrawerMockTen');
   const simDrawerJoinNick = document.getElementById('simDrawerJoinNick');
   const simDrawerJoinUser = document.getElementById('simDrawerJoinUser');
@@ -179,136 +225,91 @@ document.addEventListener('DOMContentLoaded', () => {
   const simDrawerCommentText = document.getElementById('simDrawerCommentText');
   const btnSimDrawerComment = document.getElementById('btnSimDrawerComment');
   const btnSimDrawerAutoTarget = document.getElementById('btnSimDrawerAutoTarget');
-
-  // Drawer Players
   const drawerAddPlayerForm = document.getElementById('drawerAddPlayerForm');
   const drawerAddNick = document.getElementById('drawerAddNick');
   const drawerAddUser = document.getElementById('drawerAddUser');
   const drawerPlayersTableBody = document.getElementById('drawerPlayersTableBody');
-
-  // Drawer Settings
   const drawerSettingsForm = document.getElementById('drawerSettingsForm');
   const setDrawerJoinKw = document.getElementById('setDrawerJoinKw');
   const setDrawerMaxPlayers = document.getElementById('setDrawerMaxPlayers');
   const setDrawerTimeout = document.getElementById('setDrawerTimeout');
   const setDrawerTargetSec = document.getElementById('setDrawerTargetSec');
   const setDrawerDefSec = document.getElementById('setDrawerDefSec');
-
-  // Drawer Logs
   const drawerLogsContainer = document.getElementById('drawerLogsContainer');
   const btnDrawerClearLogs = document.getElementById('btnDrawerClearLogs');
 
+  // ── State ─────────────────────────────────────────────────
   let currentSnapshot = null;
   let allPlayers = [];
   let currentTimerTotal = 30;
   let currentTargetSelectTotal = 20;
   let soundMuted = false;
 
-  // Real Official TikTok Live Gift Catalog
+  // ── Gift Catalog ──────────────────────────────────────────
   let giftCatalog = [
     { id: 'rose', nameAr: 'وردة', emoji: '🌹', coins: 1, image: 'assets/gifts/rose.png' },
-    { id: 'heart', nameAr: 'قلب الحب', emoji: '💖', coins: 49, image: 'assets/gifts/heart.png' },
     { id: 'finger_heart', nameAr: 'قلب بالأصابع', emoji: '🫰', coins: 5, image: 'assets/gifts/finger_heart.png' },
-    { id: 'hand_heart', nameAr: 'قلب باليدين', emoji: '💗', coins: 100, image: 'assets/gifts/hand_heart.png' },
+    { id: 'perfume', nameAr: 'عطر فاخر', emoji: '🧴', coins: 20, image: 'assets/gifts/perfume.png' },
     { id: 'sunglasses', nameAr: 'نظارات شمسية', emoji: '🕶️', coins: 199, image: 'assets/gifts/sunglasses.png' },
     { id: 'cap', nameAr: 'كاب تيك توك', emoji: '🧢', coins: 99, image: 'assets/gifts/cap.png' },
-    { id: 'perfume', nameAr: 'عطر فاخر', emoji: '🧴', coins: 20, image: 'assets/gifts/perfume.png' },
-    { id: 'car', nameAr: 'سيارة رياضية', emoji: '🏎️', coins: 10000, image: 'assets/gifts/car.png' },
-    { id: 'lion', nameAr: 'أسد تيك توك', emoji: '🦁', coins: 29999, image: 'assets/gifts/lion.png' },
-    { id: 'crown', nameAr: 'تاج ذهبي', emoji: '👑', coins: 1000, image: 'assets/gifts/crown.png' },
-    { id: 'rocket', nameAr: 'طائرة نفاثة / صاروخ', emoji: '🚀', coins: 4888, image: 'assets/gifts/rocket.png' },
-    { id: 'galaxy', nameAr: 'مجرة كونية', emoji: '🌌', coins: 10000, image: 'assets/gifts/galaxy.png' },
-    { id: 'trophy', nameAr: 'كأس البطولة', emoji: '🏆', coins: 7000, image: 'assets/gifts/trophy.png' },
-    { id: 'pearl', nameAr: 'لؤلؤة البحر', emoji: '🦪', coins: 800, image: 'assets/gifts/pearl.png' },
-    { id: 'gold_mine', nameAr: 'كنز الذهب', emoji: '🪙', coins: 1000, image: 'assets/gifts/gold_mine.png' },
-    { id: 'ferris_wheel', nameAr: 'عجلة الملاهي', emoji: '🎡', coins: 3000, image: 'assets/gifts/ferris_wheel.png' },
-    { id: 'motorcycle', nameAr: 'دراجة نارية', emoji: '🏍️', coins: 2988, image: 'assets/gifts/motorcycle.png' },
-    { id: 'speedboat', nameAr: 'يخت سريع', emoji: '🚤', coins: 1888, image: 'assets/gifts/speedboat.png' },
+    { id: 'hand_heart', nameAr: 'قلب باليدين', emoji: '💗', coins: 100, image: 'assets/gifts/hand_heart.png' },
+    { id: 'heart', nameAr: 'قلب الحب', emoji: '💖', coins: 49, image: 'assets/gifts/heart.png' },
     { id: 'confetti', nameAr: 'احتفال ملون', emoji: '🎉', coins: 100, image: 'assets/gifts/confetti.png' },
+    { id: 'pearl', nameAr: 'لؤلؤة البحر', emoji: '🦪', coins: 800, image: 'assets/gifts/pearl.png' },
+    { id: 'crown', nameAr: 'تاج ذهبي', emoji: '👑', coins: 1000, image: 'assets/gifts/crown.png' },
+    { id: 'gold_mine', nameAr: 'كنز الذهب', emoji: '🪙', coins: 1000, image: 'assets/gifts/gold_mine.png' },
+    { id: 'speedboat', nameAr: 'يخت سريع', emoji: '🚤', coins: 1888, image: 'assets/gifts/speedboat.png' },
+    { id: 'motorcycle', nameAr: 'دراجة نارية', emoji: '🏍️', coins: 2988, image: 'assets/gifts/motorcycle.png' },
+    { id: 'ferris_wheel', nameAr: 'عجلة الملاهي', emoji: '🎡', coins: 3000, image: 'assets/gifts/ferris_wheel.png' },
+    { id: 'rocket', nameAr: 'صاروخ / طائرة نفاثة', emoji: '🚀', coins: 4888, image: 'assets/gifts/rocket.png' },
+    { id: 'trophy', nameAr: 'كأس البطولة', emoji: '🏆', coins: 7000, image: 'assets/gifts/trophy.png' },
+    { id: 'car', nameAr: 'سيارة رياضية', emoji: '🏎️', coins: 10000, image: 'assets/gifts/car.png' },
+    { id: 'galaxy', nameAr: 'مجرة كونية', emoji: '🌌', coins: 10000, image: 'assets/gifts/galaxy.png' },
+    { id: 'lion', nameAr: 'أسد تيك توك', emoji: '🦁', coins: 29999, image: 'assets/gifts/lion.png' },
     { id: 'tiktok', nameAr: 'شعار تيك توك', emoji: '🎵', coins: 1, image: 'assets/gifts/tiktok.png' }
   ];
 
-  // Fetch gifts catalog from server
-  fetch('/api/gifts/catalog')
-    .then(r => r.json())
-    .then(d => {
-      if (d.gifts && d.gifts.length > 0) {
-        giftCatalog = d.gifts;
-      }
-      renderGiftConfigTab();
-      updateGiftsLegend();
-    })
-    .catch(() => {
-      renderGiftConfigTab();
-      updateGiftsLegend();
-    });
+  // جلب كتالوج الهدايا من الخادم (إذا متصل)
+  if (BACKEND_URL) {
+    fetch(`${BACKEND_URL}/api/gifts/catalog`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.gifts?.length > 0) giftCatalog = d.gifts.map(g => ({
+          ...g,
+          image: g.image?.startsWith('/') ? `${BACKEND_URL}${g.image}` : (g.image || `assets/gifts/${g.id}.png`)
+        }));
+        renderGiftConfigTab();
+        updateGiftsLegend();
+      })
+      .catch(() => { renderGiftConfigTab(); updateGiftsLegend(); });
+  } else {
+    setTimeout(() => { renderGiftConfigTab(); updateGiftsLegend(); }, 100);
+  }
 
   function getGiftInfo(idOrName) {
     if (!idOrName) return giftCatalog[0];
     const match = giftCatalog.find(g =>
       g.id === idOrName ||
-      g.nameAr.toLowerCase() === String(idOrName).toLowerCase() ||
+      g.nameAr?.toLowerCase() === String(idOrName).toLowerCase() ||
       (g.nameEn && g.nameEn.toLowerCase() === String(idOrName).toLowerCase())
     );
-    return match || {
-      id: idOrName,
-      nameAr: idOrName,
-      emoji: '🎁',
-      coins: 1,
-      image: `assets/gifts/${idOrName}.png`
-    };
+    return match || { id: idOrName, nameAr: idOrName, emoji: '🎁', coins: 1, image: `assets/gifts/${idOrName}.png` };
   }
 
-  // ★ Update Gifts Guide Legend on the Side ★
-  function updateGiftsLegend() {
-    const gifts = currentSnapshot?.settings?.gifts;
-    if (!gifts) return;
-
-    // 1. Defense
-    if (legendDefImg && legendDefText) {
-      const def = gifts.defense || {};
-      const defInfo = getGiftInfo(def.giftId || def.giftName || 'rose');
-      legendDefImg.src = defInfo.image;
-      legendDefText.textContent = `${def.giftName || defInfo.nameAr} (${def.minCoins || defInfo.coins || 1} عملة) لإنقاذك من الإقصاء`;
-    }
-
-    // 2. Shield
-    if (legendShieldImg && legendShieldText) {
-      const shield = gifts.shield || {};
-      const shieldInfo = getGiftInfo(shield.giftId || shield.giftName || 'sunglasses');
-      legendShieldImg.src = shieldInfo.image;
-      legendShieldText.textContent = `${shield.giftName || shieldInfo.nameAr} (${shield.minCoins || shieldInfo.coins || 30} عملة) حماية من الاستهداف`;
-    }
-
-    // 3. Rejoin
-    if (legendRejoinImg && legendRejoinText) {
-      const rejoin = gifts.rejoin || {};
-      const rejoinInfo = getGiftInfo(rejoin.giftId || rejoin.giftName || 'heart');
-      legendRejoinImg.src = rejoinInfo.image;
-      legendRejoinText.textContent = `${rejoin.giftName || rejoinInfo.nameAr} (${rejoin.minCoins || rejoinInfo.coins || 5} عملات) للعودة للروليت`;
-    }
-
-    // 4. Final
-    if (legendFinalImg && legendFinalText) {
-      const final = gifts.finalRound || {};
-      const finalInfo = getGiftInfo(final.giftId || final.giftName || 'rocket');
-      legendFinalImg.src = finalInfo.image;
-      legendFinalText.textContent = `${final.giftName || finalInfo.nameAr} (${final.minCoins || finalInfo.coins || 100} عملة) لحسم الفوز`;
-    }
-  }
-
-  // Set Webhook URL in drawer
+  // ── Webhook URL ───────────────────────────────────────────
   if (drawerWebhookUrl) {
-    drawerWebhookUrl.value = `${window.location.origin}/api/tikfinity/webhook`;
+    drawerWebhookUrl.value = BACKEND_URL
+      ? `${BACKEND_URL}/api/tikfinity/webhook`
+      : `${window.location.origin}/api/tikfinity/webhook`;
   }
   if (btnCopyWebhook) {
     btnCopyWebhook.addEventListener('click', () => {
-      navigator.clipboard.writeText(drawerWebhookUrl.value);
+      navigator.clipboard.writeText(drawerWebhookUrl.value).catch(() => {});
       alert('تم نسخ رابط TikFinity Webhook!');
     });
   }
 
-  // Sound Toggle
+  // ── Sound ─────────────────────────────────────────────────
   if (btnToggleSound) {
     btnToggleSound.addEventListener('click', () => {
       soundMuted = !soundMuted;
@@ -317,291 +318,295 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // -------------------------------------------------------------
-  // PROMINENT MAIN SPIN BUTTON ACTION (تحت الروليت بالواجهة الرئيسية)
-  // -------------------------------------------------------------
-  async function triggerRouletteSpin() {
+  // ── API Helper ────────────────────────────────────────────
+  async function apiPost(path, body = {}) {
+    if (!BACKEND_URL && !socketConnected) return null;
     try {
-      if (window.soundEngine) window.soundEngine.init();
-
-      // If in demo mode (on GitHub Pages or backend disconnected)
-      if (!socket.connected) {
-        const active = allPlayers.filter(p => p.status === 'active' || p.status === 'immune');
-        if (active.length < 2) {
-          alert('يجب أن يكون هناك لاعبان على الأقل نشطان لتدوير العجلة!');
-          return;
-        }
-        const chosen = active[Math.floor(Math.random() * active.length)];
-        
-        btnMainSpinRoulette.disabled = true;
-        btnMainSpinRoulette.classList.add('disabled-pulse');
-        btnMainSpinRoulette.textContent = '⏳ العجلة تدور الآن...';
-        
-        setBanner(`🎡 تدور العجلة الآن لاختيار صاحب الدور...`);
-        hideAllModals();
-
-        wheel.spinToPlayer(chosen, () => {
-          currentSnapshot.chosenPlayer = chosen;
-          currentSnapshot.state = 'SELECTED_PLAYER';
-          setBanner(`👑 تم اختيار ${chosen.nickname} (#${chosen.playerNumber}) بالروليت!`);
-          showTurnModal(chosen);
-          setTimeout(() => {
-            if (turnModal) turnModal.classList.remove('active');
-            currentSnapshot.state = 'SELECTING_TARGET';
-            showTargetSelectionModal(chosen);
-          }, 2400);
-        });
-        return;
-      }
-
-      const res = await fetch('/api/control/roulette/start', { method: 'POST' });
-      const data = await res.json();
-      if (!data.success) {
-        alert(data.reason || 'تعذر تشغيل الروليت');
-      }
+      const url = BACKEND_URL ? `${BACKEND_URL}/api${path}` : `/api${path}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      return res.ok ? res.json() : null;
     } catch (e) {
-      alert('خطأ: ' + e.message);
+      return null;
     }
+  }
+
+  // ── Main Spin Button ──────────────────────────────────────
+  async function triggerRouletteSpin() {
+    if (window.soundEngine) window.soundEngine.init();
+
+    if (socketConnected) {
+      const data = await apiPost('/control/roulette/start');
+      if (data && !data.success) alert(data.reason || 'تعذر تشغيل الروليت');
+      return;
+    }
+
+    // وضع Demo / offline
+    const active = allPlayers.filter(p => p.status === 'active' || p.status === 'immune');
+    if (active.length < 2) {
+      alert('يجب أن يكون هناك لاعبان على الأقل نشطان لتدوير العجلة!');
+      return;
+    }
+
+    const chosen = active[Math.floor(Math.random() * active.length)];
+    btnMainSpinRoulette.disabled = true;
+
+    setBanner('🎡 تدور العجلة الآن...');
+    hideAllModals();
+
+    wheel.spinToPlayer(chosen, () => {
+      if (!currentSnapshot) currentSnapshot = { state: 'SELECTED_PLAYER', roundNumber: 1, settings: {} };
+      currentSnapshot.chosenPlayer = chosen;
+      currentSnapshot.state = 'SELECTED_PLAYER';
+      setBanner(`👑 تم اختيار ${chosen.nickname} (#${chosen.playerNumber}) بالروليت!`);
+      showTurnModal(chosen);
+      setTimeout(() => {
+        if (turnModal) turnModal.classList.remove('active');
+        currentSnapshot.state = 'SELECTING_TARGET';
+        showTargetSelectionModal(chosen);
+      }, 2400);
+    });
   }
 
   if (btnMainSpinRoulette) {
     btnMainSpinRoulette.addEventListener('click', triggerRouletteSpin);
   }
 
-  // -------------------------------------------------------------
-  // Admin Drawer Toggle & Tabs
-  // -------------------------------------------------------------
+  // ── Admin Drawer ──────────────────────────────────────────
   if (btnOpenAdminDrawer) {
-    btnOpenAdminDrawer.addEventListener('click', () => {
-      adminDrawerModal.classList.add('active');
-    });
+    btnOpenAdminDrawer.addEventListener('click', () => adminDrawerModal.classList.add('active'));
   }
-
   if (btnCloseAdminDrawer) {
-    btnCloseAdminDrawer.addEventListener('click', () => {
-      adminDrawerModal.classList.remove('active');
-    });
+    btnCloseAdminDrawer.addEventListener('click', () => adminDrawerModal.classList.remove('active'));
   }
 
   document.querySelectorAll('.drawer-tab-btn').forEach(tabBtn => {
     tabBtn.addEventListener('click', () => {
       document.querySelectorAll('.drawer-tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-
       tabBtn.classList.add('active');
-      const targetPane = document.getElementById(tabBtn.dataset.target);
-      if (targetPane) targetPane.classList.add('active');
+      const target = document.getElementById(tabBtn.dataset.target);
+      if (target) target.classList.add('active');
     });
   });
 
-  // -------------------------------------------------------------
-  // Socket Synchronization
-  // -------------------------------------------------------------
-  socket.on('init_sync', (data) => {
-    currentSnapshot = data.snapshot;
-    allPlayers = data.players || [];
-    applyWheelConfigFromSnapshot();
-    renderAll();
-    if (data.tiktokStatus) updateTikTokBadge(data.tiktokStatus);
-  });
+  // ── Socket Events ─────────────────────────────────────────
+  function setupSocketEvents() {
+    if (!socket) return;
 
-  socket.on('state_updated', (snapshot) => {
-    currentSnapshot = snapshot;
-    applyWheelConfigFromSnapshot();
-    renderHeader();
-    handleStateVisuals(snapshot);
-    updateDrawerUI();
-    updateSpinButtonState();
-  });
-
-  socket.on('players_updated', (players) => {
-    allPlayers = players || [];
-    wheel.setPlayers(allPlayers);
-    renderPlayerLists();
-    renderDrawerPlayersTable();
-    updateSimCommentDropdown();
-    updateSpinButtonState();
-    // If target selection modal is open, refresh its grid
-    if (targetSelectionModal && targetSelectionModal.classList.contains('active')) {
-      renderTargetPlayerGrid();
-    }
-  });
-
-  socket.on('tiktok_status', (status) => {
-    updateTikTokBadge(status);
-  });
-
-  socket.on('settings_updated', (settings) => {
-    if (currentSnapshot) currentSnapshot.settings = settings;
-    applyWheelConfigFromSnapshot();
-    populateDrawerSettings();
-    renderGiftConfigTab();
-    renderHeader();
-    updateGiftsLegend();
-  });
-
-  // Roulette Spin Event
-  socket.on('roulette_spin_started', (result) => {
-    hideAllModals();
-    setBanner('🎡 العجلة تدور الآن... من سيكون صاحب القرار؟');
-    updateSpinButtonState();
-    wheel.spinToPlayer(result.chosenPlayer, () => {
-      fetch('/api/control/roulette/land', { method: 'POST' });
-    });
-  });
-
-  // Chosen Player Turn
-  socket.on('player_selected_turn', ({ chosenPlayer }) => {
-    showTurnModal(chosenPlayer);
-  });
-
-  // Target Selected (Warning Face-Off)
-  socket.on('target_selected', ({ selector, target }) => {
-    hideAllModals();
-    if (window.soundEngine) window.soundEngine.siren();
-    showConfrontationModal(selector, target);
-  });
-
-  // Timer Tick
-  socket.on('timer_tick', ({ remaining, type }) => {
-    if (type === 'target_select') {
-      updateTargetSelectTimerVisual(remaining, currentTargetSelectTotal);
-      if (window.soundEngine) window.soundEngine.timerHeartbeat(false);
-    } else {
-      updateTimerVisual(remaining, currentTimerTotal);
-      if (type === 'defense' && remaining <= 5) {
-        if (window.soundEngine) window.soundEngine.timerHeartbeat(true);
-      } else if (type === 'defense') {
-        if (window.soundEngine) window.soundEngine.timerHeartbeat(false);
-      }
-    }
-  });
-
-  socket.on('timer_started', (timer) => {
-    if (timer.type === 'target_select') {
-      currentTargetSelectTotal = timer.duration || 20;
-      updateTargetSelectTimerVisual(timer.duration, currentTargetSelectTotal);
-    } else {
-      currentTimerTotal = timer.duration || 30;
-      updateTimerVisual(timer.duration, currentTimerTotal);
-    }
-  });
-
-  // Player Saved by Gift
-  socket.on('player_saved', ({ player, giftName, coins }) => {
-    hideAllModals();
-    if (window.soundEngine) window.soundEngine.savedFanfare();
-    showResultModal('🛡️ تم إنقاذ اللاعب!', `نجح ${player.nickname} في الدفاع عن نفسه بإرسال [${giftName}] (${coins} عملة) وسيستمر في اللعبة!`, '🛡️', '#10b981');
-    setTimeout(() => hideAllModals(), 4000);
-  });
-
-  // Player Eliminated
-  socket.on('player_eliminated', ({ player, by }) => {
-    hideAllModals();
-    if (window.soundEngine) window.soundEngine.eliminatedGong();
-    showEliminationModal(player, by);
-  });
-
-  // Player Rejoined
-  socket.on('player_rejoined', ({ player, coins }) => {
-    if (window.soundEngine) window.soundEngine.rejoin();
-    showResultModal('🔄 عودة إلى اللعبة!', `اللاعب ${player.nickname} دفع ${coins} عملة وعاد إلى المنافسة برقم #${player.playerNumber}!`, '🔄', '#3b82f6');
-    setTimeout(() => hideAllModals(), 3500);
-  });
-
-  // Player Helped / Rescued
-  socket.on('player_helped', ({ helperName, target, coins }) => {
-    if (window.soundEngine) window.soundEngine.rejoin();
-    showResultModal('❤️ مساعدة نبيلة!', `قام المشاهد ${helperName} بمساعدة ${target.nickname} وإعادته إلى اللعبة!`, '❤️', '#ec4899');
-    setTimeout(() => hideAllModals(), 3800);
-  });
-
-  // Winner Declared
-  socket.on('winner_declared', ({ winner }) => {
-    hideAllModals();
-    if (window.soundEngine) window.soundEngine.victory();
-    showWinnerModal(winner);
-  });
-
-  // Reset
-  socket.on('game_reset', () => {
-    hideAllModals();
-    setBanner('تمت إعادة تعيين اللعبة. في انتظار الانضمام...');
-    updateSpinButtonState();
-  });
-
-  socket.on('activity_log', (entry) => {
-    appendDrawerLog(entry);
-  });
-
-  // -------------------------------------------------------------
-  // GitHub Pages / Offline Interactive Demo Fallback
-  // -------------------------------------------------------------
-  setTimeout(() => {
-    if (!currentSnapshot) {
-      console.log('🎮 Initializing Interactive Demo Mode for GitHub Pages / Standalone Preview...');
-      const demoSnapshot = {
-        roundNumber: 1,
-        state: 'WAITING_JOIN',
-        chosenPlayer: null,
-        targetPlayer: null,
-        winner: null,
-        settings: {
-          joinKeyword: 'تم',
-          isJoinOpen: true,
-          eliminationMode: 'target_select',
-          eliminationTimeoutSec: 20,
-          timers: {
-            defenseDuration: 30,
-            targetSelectDuration: 20
-          },
-          gifts: {
-            defense: { giftName: 'وردة', giftId: 'rose', minCoins: 1 },
-            shield: { giftName: 'نظارات شمسية', giftId: 'sunglasses', minCoins: 199 },
-            rejoin: { giftName: 'قلب الحب', giftId: 'heart', minCoins: 49 },
-            finalRound: { giftName: 'صاروخ', giftId: 'rocket', minCoins: 4888 }
-          },
-          wheelConfig: {
-            theme: 'neon',
-            spinDuration: 5000,
-            showPlayerAvatars: true,
-            showPlayerNames: true
-          }
-        }
-      };
-
-      const demoPlayers = [
-        { id: '1', playerNumber: 1, nickname: 'محمد 👑', uniqueId: 'mohammed', profilePictureUrl: 'assets/gifts/lion.png', status: 'active', hasShield: false },
-        { id: '2', playerNumber: 2, nickname: 'سارة ✨', uniqueId: 'sara', profilePictureUrl: 'assets/gifts/heart.png', status: 'immune', hasShield: true },
-        { id: '3', playerNumber: 3, nickname: 'أحمد ⚡', uniqueId: 'ahmed', profilePictureUrl: 'assets/gifts/cap.png', status: 'active', hasShield: false },
-        { id: '4', playerNumber: 4, nickname: 'خالد 🚀', uniqueId: 'khaled', profilePictureUrl: 'assets/gifts/rocket.png', status: 'active', hasShield: false },
-        { id: '5', playerNumber: 5, nickname: 'مريم 🌸', uniqueId: 'mariam', profilePictureUrl: 'assets/gifts/rose.png', status: 'active', hasShield: false },
-        { id: '6', playerNumber: 6, nickname: 'علي 🔥', uniqueId: 'ali', profilePictureUrl: 'assets/gifts/trophy.png', status: 'active', hasShield: false },
-        { id: '7', playerNumber: 7, nickname: 'نور 🌟', uniqueId: 'nour', profilePictureUrl: 'assets/gifts/pearl.png', status: 'active', hasShield: false },
-        { id: '8', playerNumber: 8, nickname: 'فهد 🏎️', uniqueId: 'fahad', profilePictureUrl: 'assets/gifts/car.png', status: 'active', hasShield: false }
-      ];
-
-      currentSnapshot = demoSnapshot;
-      allPlayers = demoPlayers;
+    socket.on('init_sync', (data) => {
+      currentSnapshot = data.snapshot;
+      allPlayers = data.players || [];
       applyWheelConfigFromSnapshot();
       renderAll();
+      if (data.tiktokStatus) updateTikTokBadge(data.tiktokStatus);
+    });
 
-      if (tiktokBadgeEl) {
-        tiktokBadgeEl.textContent = '🌐 معاينة GitHub Live';
-        tiktokBadgeEl.style.background = 'linear-gradient(45deg, #00f2fe, #4facfe)';
+    socket.on('state_updated', (snapshot) => {
+      currentSnapshot = snapshot;
+      applyWheelConfigFromSnapshot();
+      renderHeader();
+      handleStateVisuals(snapshot);
+      updateDrawerUI();
+      updateSpinButtonState();
+    });
+
+    socket.on('players_updated', (players) => {
+      allPlayers = players || [];
+      wheel.setPlayers(allPlayers);
+      renderPlayerLists();
+      renderDrawerPlayersTable();
+      updateSimCommentDropdown();
+      updateSpinButtonState();
+      if (targetSelectionModal?.classList.contains('active')) renderTargetPlayerGrid();
+    });
+
+    socket.on('tiktok_status', (status) => updateTikTokBadge(status));
+
+    socket.on('settings_updated', (settings) => {
+      if (currentSnapshot) currentSnapshot.settings = settings;
+      applyWheelConfigFromSnapshot();
+      populateDrawerSettings();
+      renderGiftConfigTab();
+      renderHeader();
+      updateGiftsLegend();
+    });
+
+    socket.on('roulette_spin_started', (result) => {
+      hideAllModals();
+      setBanner('🎡 العجلة تدور الآن... من سيكون صاحب القرار؟');
+      updateSpinButtonState();
+      wheel.spinToPlayer(result.chosenPlayer, () => {
+        apiPost('/control/roulette/land');
+      });
+    });
+
+    socket.on('player_selected_turn', ({ chosenPlayer }) => showTurnModal(chosenPlayer));
+
+    socket.on('target_selected', ({ selector, target }) => {
+      hideAllModals();
+      if (window.soundEngine) window.soundEngine.siren();
+      showConfrontationModal(selector, target);
+    });
+
+    socket.on('timer_tick', ({ remaining, type }) => {
+      if (type === 'target_select') {
+        updateTargetSelectTimerVisual(remaining, currentTargetSelectTotal);
+        if (window.soundEngine) window.soundEngine.timerHeartbeat(false);
+      } else {
+        updateTimerVisual(remaining, currentTimerTotal);
+        if (type === 'defense') {
+          if (window.soundEngine) window.soundEngine.timerHeartbeat(remaining <= 5);
+        }
       }
-      if (btnMainSpinRoulette) {
-        btnMainSpinRoulette.disabled = false;
-        btnMainSpinRoulette.classList.remove('disabled-pulse');
-        btnMainSpinRoulette.textContent = 'تدوير العجلة 🎡';
+    });
+
+    socket.on('timer_started', (timer) => {
+      if (timer.type === 'target_select') {
+        currentTargetSelectTotal = timer.duration || 20;
+        updateTargetSelectTimerVisual(timer.duration, currentTargetSelectTotal);
+      } else {
+        currentTimerTotal = timer.duration || 30;
+        updateTimerVisual(timer.duration, currentTimerTotal);
       }
-      setBanner('جاهز للبدء! اضغط على زر [تدوير العجلة 🎡] لتجربة اللعبة.');
+    });
+
+    socket.on('player_saved', ({ player, giftName, coins }) => {
+      hideAllModals();
+      if (window.soundEngine) window.soundEngine.savedFanfare();
+      showResultModal('🛡️ تم إنقاذ اللاعب!',
+        `نجح ${player.nickname} في الدفاع عن نفسه بـ [${giftName}] (${coins} عملة)!`, '🛡️', '#10b981');
+      setTimeout(() => hideAllModals(), 4000);
+    });
+
+    socket.on('player_eliminated', ({ player, by }) => {
+      hideAllModals();
+      if (window.soundEngine) window.soundEngine.eliminatedGong();
+      showEliminationModal(player, by);
+    });
+
+    socket.on('player_rejoined', ({ player, coins }) => {
+      if (window.soundEngine) window.soundEngine.rejoin();
+      showResultModal('🔄 عودة إلى اللعبة!',
+        `${player.nickname} دفع ${coins} عملة وعاد إلى المنافسة برقم #${player.playerNumber}!`, '🔄', '#3b82f6');
+      setTimeout(() => hideAllModals(), 3500);
+    });
+
+    socket.on('player_helped', ({ helperName, target }) => {
+      if (window.soundEngine) window.soundEngine.rejoin();
+      showResultModal('❤️ مساعدة نبيلة!',
+        `قام ${helperName} بمساعدة ${target.nickname} وإعادته للعبة!`, '❤️', '#ec4899');
+      setTimeout(() => hideAllModals(), 3800);
+    });
+
+    socket.on('winner_declared', ({ winner }) => {
+      hideAllModals();
+      if (window.soundEngine) window.soundEngine.victory();
+      showWinnerModal(winner);
+    });
+
+    socket.on('game_reset', () => {
+      hideAllModals();
+      setBanner('تمت إعادة تعيين اللعبة. في انتظار الانضمام...');
+      updateSpinButtonState();
+    });
+
+    socket.on('activity_log', (entry) => appendDrawerLog(entry));
+  }
+
+  // ── Demo Mode ─────────────────────────────────────────────
+  function startDemoMode() {
+    if (currentSnapshot) return; // Already initialized
+
+    console.log('[Overlay] 🎮 تشغيل وضع Demo');
+
+    currentSnapshot = {
+      roundNumber: 1,
+      state: 'WAITING_JOIN',
+      chosenPlayer: null, targetPlayer: null, winner: null,
+      settings: {
+        joinKeyword: 'تم', isJoinOpen: true,
+        timers: { defenseDuration: 30, targetSelectDuration: 20 },
+        gifts: {
+          defense: { giftName: 'وردة', giftId: 'rose', minCoins: 1 },
+          shield: { giftName: 'نظارات شمسية', giftId: 'sunglasses', minCoins: 199 },
+          rejoin: { giftName: 'قلب الحب', giftId: 'heart', minCoins: 49 },
+          finalRound: { giftName: 'صاروخ', giftId: 'rocket', minCoins: 4888 }
+        },
+        wheelConfig: { theme: 'neon', spinDuration: 5000, showPlayerAvatars: true, showPlayerNames: true }
+      }
+    };
+
+    allPlayers = [
+      { id:'1', playerNumber:1, nickname:'محمد 👑', uniqueId:'mohammed', profilePictureUrl:'assets/gifts/lion.png', status:'active', hasShield:false },
+      { id:'2', playerNumber:2, nickname:'سارة ✨', uniqueId:'sara', profilePictureUrl:'assets/gifts/heart.png', status:'immune', hasShield:true },
+      { id:'3', playerNumber:3, nickname:'أحمد ⚡', uniqueId:'ahmed', profilePictureUrl:'assets/gifts/cap.png', status:'active', hasShield:false },
+      { id:'4', playerNumber:4, nickname:'خالد 🚀', uniqueId:'khaled', profilePictureUrl:'assets/gifts/rocket.png', status:'active', hasShield:false },
+      { id:'5', playerNumber:5, nickname:'مريم 🌸', uniqueId:'mariam', profilePictureUrl:'assets/gifts/rose.png', status:'active', hasShield:false },
+      { id:'6', playerNumber:6, nickname:'علي 🔥', uniqueId:'ali', profilePictureUrl:'assets/gifts/trophy.png', status:'active', hasShield:false },
+      { id:'7', playerNumber:7, nickname:'نور 🌟', uniqueId:'nour', profilePictureUrl:'assets/gifts/pearl.png', status:'active', hasShield:false },
+      { id:'8', playerNumber:8, nickname:'فهد 🏎️', uniqueId:'fahad', profilePictureUrl:'assets/gifts/car.png', status:'active', hasShield:false }
+    ];
+
+    applyWheelConfigFromSnapshot();
+    renderAll();
+
+    if (tiktokBadgeEl) {
+      tiktokBadgeEl.textContent = '🌐 وضع Demo';
+      tiktokBadgeEl.style.background = 'linear-gradient(45deg, #00f2fe, #4facfe)';
     }
-  }, 300);
+    if (btnMainSpinRoulette) {
+      btnMainSpinRoulette.disabled = false;
+    }
+    setBanner('⚡ وضع Demo - اضغط [تدوير العجلة] لتجربة اللعبة كاملاً!');
+  }
 
-  // -------------------------------------------------------------
-  // Render Methods - Overlay
-  // -------------------------------------------------------------
+  // بدء Socket.IO
+  window.tiktokBadgeEl = tiktokBadgeEl;
+  window.startDemoMode = startDemoMode;
+
+  if (typeof io !== 'undefined' && BACKEND_URL) {
+    try {
+      socket = io(BACKEND_URL, {
+        transports: ['websocket', 'polling'],
+        timeout: 8000,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000
+      });
+
+      socket.on('connect', () => {
+        console.log('[Overlay] ✅ متصل بالـ backend');
+        socketConnected = true;
+        if (tiktokBadgeEl) {
+          tiktokBadgeEl.textContent = '🔗 متصل بالخادم';
+          tiktokBadgeEl.style.borderColor = 'rgba(16,185,129,0.4)';
+        }
+      });
+
+      socket.on('connect_error', () => {
+        socketConnected = false;
+      });
+
+      socket.on('disconnect', () => { socketConnected = false; });
+
+      setupSocketEvents();
+
+      setTimeout(() => {
+        if (!socketConnected && !currentSnapshot) startDemoMode();
+      }, 6000);
+
+    } catch (e) {
+      console.error('[Overlay] Socket init error:', e);
+      startDemoMode();
+    }
+  } else {
+    setTimeout(startDemoMode, 300);
+  }
+
+  // ── Render Functions ──────────────────────────────────────
   function renderAll() {
     renderHeader();
     renderPlayerLists();
@@ -616,9 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderHeader() {
     if (!currentSnapshot) return;
 
-    if (roundBadgeEl) {
-      roundBadgeEl.textContent = `الجولة #${currentSnapshot.roundNumber || 1}`;
-    }
+    if (roundBadgeEl) roundBadgeEl.textContent = `الجولة #${currentSnapshot.roundNumber || 1}`;
 
     if (joinBadgeEl) {
       const isOpen = currentSnapshot.settings?.isJoinOpen;
@@ -632,20 +635,34 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Shield Gift Badge in Header
     if (shieldGiftBadge) {
       const shieldConf = currentSnapshot.settings?.gifts?.shield;
       if (shieldConf) {
         const giftInfo = getGiftInfo(shieldConf.giftId || 'sunglasses');
         shieldGiftBadge.style.display = 'inline-flex';
         if (shieldGiftBadgeImg) shieldGiftBadgeImg.src = giftInfo.image;
-        if (shieldGiftBadgeText) {
-          shieldGiftBadgeText.textContent = `درع الحصانة: ${shieldConf.giftName || giftInfo.nameAr} (${shieldConf.minCoins || 30} عملة)`;
-        }
+        if (shieldGiftBadgeText) shieldGiftBadgeText.textContent = `درع الحصانة: ${shieldConf.giftName || giftInfo.nameAr} (${shieldConf.minCoins || 30} عملة)`;
       } else {
         shieldGiftBadge.style.display = 'none';
       }
     }
+  }
+
+  function updateGiftsLegend() {
+    const gifts = currentSnapshot?.settings?.gifts;
+    if (!gifts) return;
+
+    const updateLegendItem = (img, text, giftConf, fallbackId, fallbackDesc) => {
+      if (!img || !text) return;
+      const info = getGiftInfo(giftConf?.giftId || giftConf?.giftName || fallbackId);
+      img.src = info.image;
+      text.textContent = `${giftConf?.giftName || info.nameAr} (${giftConf?.minCoins || info.coins || 1} عملة) ${fallbackDesc}`;
+    };
+
+    updateLegendItem(legendDefImg, legendDefText, gifts.defense, 'rose', 'لإنقاذك من الإقصاء');
+    updateLegendItem(legendShieldImg, legendShieldText, gifts.shield, 'sunglasses', 'حماية من الاستهداف');
+    updateLegendItem(legendRejoinImg, legendRejoinText, gifts.rejoin, 'heart', 'للعودة للروليت');
+    updateLegendItem(legendFinalImg, legendFinalText, gifts.finalRound, 'rocket', 'لحسم الفوز');
   }
 
   function updateSpinButtonState() {
@@ -654,14 +671,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const isSpinning = currentSnapshot?.state === 'SPINNING';
 
     if (actives.length < 2) {
-      btnMainSpinRoulette.classList.add('disabled');
-      btnMainSpinRoulette.querySelector('.spin-text').textContent = `في انتظار لاعبين (${actives.length}/2)...`;
+      btnMainSpinRoulette.disabled = true;
+      const st = btnMainSpinRoulette.querySelector('.spin-text');
+      if (st) st.textContent = `في انتظار لاعبين (${actives.length}/2)...`;
     } else if (isSpinning) {
-      btnMainSpinRoulette.classList.add('disabled');
-      btnMainSpinRoulette.querySelector('.spin-text').textContent = 'العجلة تدور الآن...';
+      btnMainSpinRoulette.disabled = true;
+      const st = btnMainSpinRoulette.querySelector('.spin-text');
+      if (st) st.textContent = 'العجلة تدور الآن...';
     } else {
-      btnMainSpinRoulette.classList.remove('disabled');
-      btnMainSpinRoulette.querySelector('.spin-text').textContent = 'تدوير الروليت الآن (Start Roulette)';
+      btnMainSpinRoulette.disabled = false;
+      const st = btnMainSpinRoulette.querySelector('.spin-text');
+      if (st) st.textContent = 'تدوير الروليت الآن (Start Roulette)';
     }
   }
 
@@ -669,50 +689,31 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!tiktokBadgeEl) return;
     if (!status || typeof status !== 'object') {
       tiktokBadgeEl.innerHTML = `تيك توك: غير متصل`;
-      tiktokBadgeEl.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-      if (drawerTiktokStatusText) {
-        drawerTiktokStatusText.innerHTML = `<span style="color: var(--text-muted);">⚪ غير متصل بالبث المباشر</span>`;
-      }
+      if (drawerTiktokStatusText) drawerTiktokStatusText.innerHTML = `<span style="color:var(--text-muted);">⚪ غير متصل</span>`;
       return;
     }
 
-    if (status.username && drawerTiktokUser && !drawerTiktokUser.value) {
-      drawerTiktokUser.value = status.username;
-    }
+    if (status.username && drawerTiktokUser && !drawerTiktokUser.value) drawerTiktokUser.value = status.username;
 
     if (status.status === 'connected') {
-      const viewerStr = status.roomInfo?.viewerCount ? ` (${status.roomInfo.viewerCount} 👁️)` : '';
-      tiktokBadgeEl.innerHTML = `<span class="pulse-dot"></span> متصل: @${status.username}${viewerStr}`;
+      const mode = status.connectionMode === 'tikfinity' ? '📡 TikFinity' : status.connectionMode === 'simulator' ? '⚡ محاكي' : '✅';
+      const viewers = status.roomInfo?.viewerCount ? ` (${status.roomInfo.viewerCount} 👁️)` : '';
+      tiktokBadgeEl.innerHTML = `<span class="pulse-dot"></span> ${mode}: @${status.username}${viewers}`;
       tiktokBadgeEl.style.borderColor = 'rgba(16, 185, 129, 0.5)';
-
-      if (drawerTiktokStatusText) {
-        drawerTiktokStatusText.innerHTML = `<span style="color: #10b981; font-weight: 800;">✅ متصل بالبث المباشر بنجاح (@${status.username})${viewerStr}</span>`;
-      }
+      if (drawerTiktokStatusText) drawerTiktokStatusText.innerHTML = `<span style="color:#10b981;font-weight:800;">✅ متصل بالبث (@${status.username})${viewers}</span>`;
       if (btnDrawerConnect) btnDrawerConnect.style.display = 'none';
       if (btnDrawerDisconnect) btnDrawerDisconnect.style.display = 'inline-flex';
     } else if (status.status === 'connecting') {
       tiktokBadgeEl.innerHTML = `جاري الاتصال بـ @${status.username}...`;
-      tiktokBadgeEl.style.borderColor = 'rgba(245, 158, 11, 0.5)';
-
-      if (drawerTiktokStatusText) {
-        drawerTiktokStatusText.innerHTML = `<span style="color: #f59e0b; font-weight: 800;">⏳ جاري محاولة الاتصال بالبث المباشر...</span>`;
-      }
+      if (drawerTiktokStatusText) drawerTiktokStatusText.innerHTML = `<span style="color:#f59e0b;">⏳ جاري الاتصال...</span>`;
     } else if (status.status === 'error') {
-      tiktokBadgeEl.innerHTML = `تيك توك: تعذر الاتصال`;
-      tiktokBadgeEl.style.borderColor = 'rgba(239, 68, 68, 0.4)';
-
-      if (drawerTiktokStatusText) {
-        drawerTiktokStatusText.innerHTML = `<span style="color: #ef4444; font-weight: 700;">❌ ${status.lastError || 'تعذر الاتصال'}</span>`;
-      }
+      tiktokBadgeEl.innerHTML = `❌ تيك توك: تعذر الاتصال`;
+      tiktokBadgeEl.style.borderColor = 'rgba(239,68,68,0.4)';
+      if (drawerTiktokStatusText) drawerTiktokStatusText.innerHTML = `<span style="color:#ef4444;">❌ ${status.lastError || 'تعذر الاتصال'}</span>`;
       if (btnDrawerConnect) btnDrawerConnect.style.display = 'inline-flex';
       if (btnDrawerDisconnect) btnDrawerDisconnect.style.display = 'none';
     } else {
       tiktokBadgeEl.innerHTML = `تيك توك: غير متصل`;
-      tiktokBadgeEl.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-
-      if (drawerTiktokStatusText) {
-        drawerTiktokStatusText.innerHTML = `<span style="color: var(--text-muted);">⚪ غير متصل بالبث المباشر</span>`;
-      }
       if (btnDrawerConnect) btnDrawerConnect.style.display = 'inline-flex';
       if (btnDrawerDisconnect) btnDrawerDisconnect.style.display = 'none';
     }
@@ -729,13 +730,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const shieldConf = currentSnapshot?.settings?.gifts?.shield;
     const shieldGift = getGiftInfo(shieldConf?.giftId || 'sunglasses');
 
-    // Render Active
     if (activePlayersList) {
       activePlayersList.innerHTML = actives.map(p => {
         const isChosen = currentSnapshot?.chosenPlayer?.id === p.id;
         const isTarget = currentSnapshot?.targetPlayer?.id === p.id;
         const isImmune = p.hasShield || p.status === 'immune';
-
         let cardClass = 'player-card';
         if (isChosen) cardClass += ' active-turn';
         if (isTarget) cardClass += ' under-attack';
@@ -744,99 +743,81 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
           <div class="${cardClass}">
             <div class="player-num-badge">#${p.playerNumber}</div>
-            <img class="player-avatar" src="${p.profilePictureUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + p.playerNumber}" alt="">
+            <img class="player-avatar" src="${p.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.playerNumber}`}" alt="" onerror="this.src='assets/gifts/rose.png'">
             <div class="player-info">
               <div class="player-name">${escapeHtml(p.nickname)}</div>
               <div class="player-sub">@${escapeHtml(p.uniqueId)}</div>
             </div>
-            ${isImmune ? `
-              <div style="display:flex;align-items:center;gap:4px;" title="محمي بدرع الحصانة (${shieldGift.nameAr})">
-                <img src="${shieldGift.image}" style="width:24px;height:24px;object-fit:contain;" alt="">
-                <span class="shield-badge-icon">🛡️</span>
-              </div>
-            ` : ''}
-          </div>
-        `;
+            ${isImmune ? `<div style="display:flex;align-items:center;gap:4px;" title="محمي بدرع الحصانة">
+              <img src="${shieldGift.image}" style="width:24px;height:24px;object-fit:contain;" alt="" onerror="this.style.display='none'">
+              <span class="shield-badge-icon">🛡️</span>
+            </div>` : ''}
+          </div>`;
       }).join('');
     }
 
-    // Render Eliminated
     if (eliminatedPlayersList) {
       eliminatedPlayersList.innerHTML = eliminated.map(p => `
         <div class="player-card eliminated">
-          <div class="player-num-badge" style="background: #475569;">#${p.playerNumber}</div>
-          <img class="player-avatar" src="${p.profilePictureUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + p.playerNumber}" alt="">
+          <div class="player-num-badge" style="background:#475569;">#${p.playerNumber}</div>
+          <img class="player-avatar" src="${p.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.playerNumber}`}" alt="" onerror="this.src='assets/gifts/rose.png'">
           <div class="player-info">
             <div class="player-name">${escapeHtml(p.nickname)}</div>
-            <div class="player-sub" style="color: #ef4444;">مستبعد ☠️ (أرسل هدية العودة)</div>
+            <div class="player-sub" style="color:#ef4444;">مستبعد ☠️ (أرسل هدية العودة)</div>
           </div>
-        </div>
-      `).join('');
+        </div>`).join('');
     }
   }
 
   function handleStateVisuals(snapshot) {
     if (joinInstructionsCard) {
-      const isJoinState = (snapshot.state === 'WAITING_FOR_PLAYERS' || snapshot.state === 'READY') && snapshot.settings?.isJoinOpen !== false;
-      if (isJoinState) {
-        joinInstructionsCard.classList.remove('hidden');
-        if (joinKeywordHighlight) joinKeywordHighlight.textContent = snapshot.settings?.joinKeyword || 'تم';
-      } else {
-        joinInstructionsCard.classList.add('hidden');
-      }
+      const isJoinState = (snapshot.state === 'WAITING_FOR_PLAYERS' || snapshot.state === 'READY' || snapshot.state === 'WAITING_JOIN') && snapshot.settings?.isJoinOpen !== false;
+      joinInstructionsCard.classList.toggle('hidden', !isJoinState);
+      if (isJoinState && joinKeywordHighlight) joinKeywordHighlight.textContent = snapshot.settings?.joinKeyword || 'تم';
     }
 
     switch (snapshot.state) {
       case 'WAITING_FOR_PLAYERS':
+      case 'WAITING_JOIN':
         setBanner(`في انتظار اللاعبين... اكتب [${snapshot.settings?.joinKeyword || 'تم'}] في الشات للمشاركة!`);
         break;
       case 'READY':
-        setBanner(`اللعبة جاهزة! (${snapshot.activeCount} لاعبين). اضغط على زر تدوير الروليت لبدء الجولة.`);
+        setBanner(`اللعبة جاهزة! (${allPlayers.filter(p => p.status === 'active' || p.status === 'immune').length} لاعبين). اضغط تدوير الروليت.`);
         break;
       case 'SPINNING':
         setBanner('🎡 العجلة تدور الآن... من سيكون صاحب القرار؟');
         break;
       case 'SELECTED_PLAYER':
-        if (snapshot.chosenPlayer) {
-          showTurnModal(snapshot.chosenPlayer);
-        }
+        if (snapshot.chosenPlayer) showTurnModal(snapshot.chosenPlayer);
         break;
       case 'SELECTING_TARGET':
         if (snapshot.chosenPlayer) {
-          setBanner(`🎯 اللاعب ${snapshot.chosenPlayer.nickname} (#${snapshot.chosenPlayer.playerNumber}) يختار هدف الإقصاء عبر الشات الآن!`);
+          setBanner(`🎯 ${snapshot.chosenPlayer.nickname} يختار هدف الإقصاء!`);
           showTargetSelectionModal(snapshot.chosenPlayer);
         }
         break;
       case 'ELIMINATION_WARNING':
       case 'DEFENDING':
         if (snapshot.targetPlayer && snapshot.chosenPlayer) {
-          if (snapshot.state === 'DEFENDING') {
-            setBanner(`🛡️ مؤقت الدفاع جارٍ! اللاعب ${snapshot.targetPlayer.nickname} يدافع عن نفسه!`);
-          }
           if (targetSelectionModal) targetSelectionModal.classList.remove('active');
           if (turnModal) turnModal.classList.remove('active');
           showConfrontationModal(snapshot.chosenPlayer, snapshot.targetPlayer);
         }
         break;
       case 'FINISHED':
-        if (snapshot.winner) {
-          setBanner(`👑 البطل النهائي: ${snapshot.winner.nickname}!`);
-        }
+        if (snapshot.winner) setBanner(`👑 البطل النهائي: ${snapshot.winner.nickname}!`);
         break;
     }
   }
 
-  // -------------------------------------------------------------
-  // Modals & Popups
-  // -------------------------------------------------------------
+  // ── Modals ────────────────────────────────────────────────
   function showTurnModal(player) {
     if (!turnModal) return;
-    turnAvatar.src = player.profilePictureUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + player.playerNumber;
+    turnAvatar.src = player.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${player.playerNumber}`;
     turnPlayerNum.textContent = `#${player.playerNumber}`;
     turnPlayerName.textContent = player.nickname;
     turnModal.classList.add('active');
 
-    // Auto-transition to Target Selection modal after 1.8 seconds
     setTimeout(() => {
       if (currentSnapshot?.state === 'SELECTING_TARGET' || currentSnapshot?.state === 'SELECTED_PLAYER') {
         turnModal.classList.remove('active');
@@ -845,23 +826,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1800);
   }
 
-  // ★ TARGET SELECTION MODAL: All players with numbers, avatars, and names ★
   function showTargetSelectionModal(chooser) {
     if (!targetSelectionModal || !chooser) return;
-
-    if (tsChooserAvatar) {
-      tsChooserAvatar.src = chooser.profilePictureUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + chooser.playerNumber;
-    }
+    if (tsChooserAvatar) tsChooserAvatar.src = chooser.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${chooser.playerNumber}`;
     if (tsChooserNum) tsChooserNum.textContent = `#${chooser.playerNumber}`;
     if (tsChooserName) tsChooserName.textContent = chooser.nickname;
 
     renderTargetPlayerGrid();
 
-    // Reset timer visuals
     const totalSec = currentSnapshot?.settings?.timers?.targetSelectDuration || 20;
     currentTargetSelectTotal = totalSec;
     updateTargetSelectTimerVisual(totalSec, totalSec);
-
     targetSelectionModal.classList.add('active');
   }
 
@@ -873,123 +848,94 @@ document.addEventListener('DOMContentLoaded', () => {
     tsPlayerGrid.innerHTML = actives.map(p => {
       const isSelf = chooser && (p.id === chooser.id || p.playerNumber === chooser.playerNumber);
       const isImmune = p.hasShield || p.status === 'immune';
-
       let cardClass = 'ts-player-card';
-      let badgeHtml = `<span class="ts-card-badge target-btn">🎯 اختر #${p.playerNumber}</span>`;
+      let badge = `<span class="ts-card-badge target-btn">🎯 اختر #${p.playerNumber}</span>`;
 
       if (isSelf) {
         cardClass += ' is-self';
-        badgeHtml = `<span class="ts-card-badge" style="background:rgba(255,255,255,0.1);color:#cbd5e1;">صاحب القرار ⭐</span>`;
+        badge = `<span class="ts-card-badge" style="background:rgba(255,255,255,0.1);color:#cbd5e1;">صاحب القرار ⭐</span>`;
       } else if (isImmune) {
         cardClass += ' is-immune';
-        badgeHtml = `<span class="ts-card-badge immune-badge">محمي بالدرع 🛡️</span>`;
+        badge = `<span class="ts-card-badge immune-badge">محمي بالدرع 🛡️</span>`;
       }
 
       return `
         <div class="${cardClass}" data-player-num="${p.playerNumber}" ${!isSelf && !isImmune ? `onclick="window.selectTargetPlayer(${p.playerNumber})"` : ''}>
           <div class="ts-card-avatar-wrap">
-            <img class="ts-card-avatar" src="${p.profilePictureUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + p.playerNumber}" alt="">
+            <img class="ts-card-avatar" src="${p.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.playerNumber}`}" alt="" onerror="this.src='assets/gifts/rose.png'">
             <div class="ts-card-num">#${p.playerNumber}</div>
           </div>
           <div class="ts-card-name">${escapeHtml(p.nickname)}</div>
           <div class="ts-card-sub">@${escapeHtml(p.uniqueId)}</div>
-          ${badgeHtml}
-        </div>
-      `;
+          ${badge}
+        </div>`;
     }).join('');
   }
 
-  // Click handler to select target (works for admin / testing / host convenience / demo)
   window.selectTargetPlayer = async (targetNumber) => {
     if (!currentSnapshot?.chosenPlayer) return;
     const chooser = currentSnapshot.chosenPlayer;
 
-    if (!socket.connected) {
-      // Demo mode execution
-      const target = allPlayers.find(p => p.playerNumber === targetNumber);
-      if (target) {
-        if (targetSelectionModal) targetSelectionModal.classList.remove('active');
-        target.status = 'eliminated';
-        currentSnapshot.targetPlayer = target;
-        currentSnapshot.state = 'ELIMINATED';
-        renderAll();
-        if (window.soundEngine) window.soundEngine.eliminatedGong();
-        showEliminationModal(target, chooser);
-        setBanner(`💀 تم إقصاء ${target.nickname} (#${target.playerNumber}) بقرار من ${chooser.nickname}!`);
-
-        setTimeout(() => {
-          if (eliminationModal) eliminationModal.classList.remove('active');
-          const remainingActive = allPlayers.filter(p => p.status === 'active' || p.status === 'immune');
-          if (remainingActive.length === 1) {
-            currentSnapshot.winner = remainingActive[0];
-            currentSnapshot.state = 'FINISHED';
-            if (window.soundEngine) window.soundEngine.victory();
-            showWinnerModal(remainingActive[0]);
-            setBanner(`🏆 فاز بالبطولة اللاعب ${remainingActive[0].nickname}! ألف مبروك!`);
-          } else {
-            currentSnapshot.state = 'READY';
-            currentSnapshot.chosenPlayer = null;
-            currentSnapshot.targetPlayer = null;
-            renderAll();
-            setBanner(`🎡 الجولة مستمرة! تبقى ${remainingActive.length} لاعبين. جاهز للتدوير.`);
-            if (btnMainSpinRoulette) {
-              btnMainSpinRoulette.disabled = false;
-              btnMainSpinRoulette.classList.remove('disabled-pulse');
-              btnMainSpinRoulette.textContent = 'تدوير العجلة 🎡';
-            }
-          }
-        }, 6200);
-      }
+    if (socketConnected) {
+      await apiPost('/simulate/comment', { uniqueId: chooser.uniqueId, commentText: `${targetNumber}` });
       return;
     }
 
-    await fetch('/api/simulate/comment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        uniqueId: chooser.uniqueId,
-        commentText: `${targetNumber}`
-      })
-    });
+    // Demo mode
+    const target = allPlayers.find(p => p.playerNumber === targetNumber);
+    if (!target) return;
+
+    if (targetSelectionModal) targetSelectionModal.classList.remove('active');
+    target.status = 'eliminated';
+    currentSnapshot.targetPlayer = target;
+    currentSnapshot.state = 'ELIMINATED';
+    renderAll();
+    if (window.soundEngine) window.soundEngine.eliminatedGong();
+    showEliminationModal(target, chooser);
+    setBanner(`💀 تم إقصاء ${target.nickname} (#${target.playerNumber}) بقرار من ${chooser.nickname}!`);
+
+    setTimeout(() => {
+      if (eliminationModal) eliminationModal.classList.remove('active');
+      const remaining = allPlayers.filter(p => p.status === 'active' || p.status === 'immune');
+      if (remaining.length === 1) {
+        currentSnapshot.winner = remaining[0];
+        currentSnapshot.state = 'FINISHED';
+        if (window.soundEngine) window.soundEngine.victory();
+        showWinnerModal(remaining[0]);
+        setBanner(`🏆 فاز ${remaining[0].nickname}! ألف مبروك!`);
+      } else {
+        currentSnapshot.state = 'READY';
+        currentSnapshot.chosenPlayer = null;
+        currentSnapshot.targetPlayer = null;
+        renderAll();
+        setBanner(`🎡 تبقى ${remaining.length} لاعبين. جاهز للتدوير.`);
+        if (btnMainSpinRoulette) btnMainSpinRoulette.disabled = false;
+      }
+    }, 6200);
   };
 
   function updateTargetSelectTimerVisual(remaining, total) {
     if (tsTimerDigits) tsTimerDigits.textContent = remaining;
     if (tsTimerProgress) {
-      const perimeter = 283;
-      const fraction = Math.max(0, remaining / (total || 20));
-      const offset = perimeter - (fraction * perimeter);
-      tsTimerProgress.style.strokeDashoffset = offset;
-      if (remaining <= 5) {
-        tsTimerProgress.style.stroke = '#ef4444';
-      } else {
-        tsTimerProgress.style.stroke = '#fbbf24';
-      }
+      const frac = Math.max(0, remaining / (total || 20));
+      tsTimerProgress.style.strokeDashoffset = 283 - (frac * 283);
+      tsTimerProgress.style.stroke = remaining <= 5 ? '#ef4444' : '#fbbf24';
     }
   }
 
   function showConfrontationModal(selector, target) {
     if (!confrontationModal) return;
-
-    selectorAvatar.src = selector.profilePictureUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + selector.playerNumber;
+    selectorAvatar.src = selector.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${selector.playerNumber}`;
     selectorName.textContent = selector.nickname;
     selectorNum.textContent = `#${selector.playerNumber}`;
-
-    targetAvatar.src = target.profilePictureUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + target.playerNumber;
+    targetAvatar.src = target.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${target.playerNumber}`;
     targetName.textContent = target.nickname;
     targetNum.textContent = `#${target.playerNumber}`;
 
     const defGiftConf = currentSnapshot?.settings?.gifts?.defense;
     const defGiftInfo = getGiftInfo(defGiftConf?.giftId || defGiftConf?.giftName || 'rose');
-
-    if (defenseGiftImg) {
-      defenseGiftImg.src = defGiftInfo.image;
-      defenseGiftImg.style.display = 'inline-block';
-    }
-
-    if (defenseGiftText) {
-      defenseGiftText.textContent = `أرسل [${defGiftConf?.giftName || defGiftInfo.nameAr}] بقيمة (${defGiftConf?.minCoins || defGiftInfo.coins || 1} عملة) لإنقاذ نفسك وإلغاء الإقصاء فوراً!`;
-    }
+    if (defenseGiftImg) { defenseGiftImg.src = defGiftInfo.image; defenseGiftImg.style.display = 'inline-block'; }
+    if (defenseGiftText) defenseGiftText.textContent = `أرسل [${defGiftConf?.giftName || defGiftInfo.nameAr}] بقيمة (${defGiftConf?.minCoins || defGiftInfo.coins || 1} عملة) لإنقاذ نفسك!`;
 
     confrontationModal.classList.add('active');
   }
@@ -1003,20 +949,16 @@ document.addEventListener('DOMContentLoaded', () => {
     resultModal.classList.add('active');
   }
 
-  // ★ Dedicated Elimination Modal (صورة اللاعب وصورة من أقصاه ولا تختفي بسرعة) ★
   function showEliminationModal(player, by) {
     if (!eliminationModal || !player) return;
-
-    if (elimPlayerAvatar) {
-      elimPlayerAvatar.src = player.profilePictureUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + player.playerNumber;
-    }
+    if (elimPlayerAvatar) elimPlayerAvatar.src = player.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${player.playerNumber}`;
     if (elimPlayerNum) elimPlayerNum.textContent = `#${player.playerNumber}`;
     if (elimPlayerName) elimPlayerName.textContent = player.nickname;
     if (elimPlayerUser) elimPlayerUser.textContent = `@${player.uniqueId}`;
 
     if (by && elimByBox) {
       elimByBox.style.display = 'flex';
-      if (elimByAvatar) elimByAvatar.src = by.profilePictureUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + by.playerNumber;
+      if (elimByAvatar) elimByAvatar.src = by.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${by.playerNumber}`;
       if (elimByName) elimByName.textContent = by.nickname;
       if (elimByNum) elimByNum.textContent = `#${by.playerNumber}`;
     } else if (elimByBox) {
@@ -1025,26 +967,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const rejoinConf = currentSnapshot?.settings?.gifts?.rejoin;
     const rejoinInfo = getGiftInfo(rejoinConf?.giftId || rejoinConf?.giftName || 'heart');
-
     if (elimRejoinImg) elimRejoinImg.src = rejoinInfo.image;
-    if (elimRejoinDetail) {
-      elimRejoinDetail.textContent = `أرسل هدية [${rejoinConf?.giftName || rejoinInfo.nameAr}] بقيمة (${rejoinConf?.minCoins || rejoinInfo.coins || 5} عملات) لتعود فوراً إلى المنافسة!`;
-    }
+    if (elimRejoinDetail) elimRejoinDetail.textContent = `أرسل هدية [${rejoinConf?.giftName || rejoinInfo.nameAr}] بقيمة (${rejoinConf?.minCoins || rejoinInfo.coins || 5} عملات) للعودة!`;
 
     eliminationModal.classList.add('active');
 
-    // Keep visible for full 6 seconds as requested
+    // يبقى ظاهراً 6 ثوان كاملة
     setTimeout(() => {
-      if (eliminationModal.classList.contains('active')) {
-        eliminationModal.classList.remove('active');
-      }
+      if (eliminationModal.classList.contains('active')) eliminationModal.classList.remove('active');
     }, 6000);
   }
 
-  // ★ Grand Winner Modal (صورة البطل واضحة واحتفالية) ★
   function showWinnerModal(winner) {
     if (!winnerModal || !winner) return;
-    if (winnerAvatar) winnerAvatar.src = winner.profilePictureUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + winner.playerNumber;
+    if (winnerAvatar) winnerAvatar.src = winner.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${winner.playerNumber}`;
     if (winnerName) winnerName.textContent = winner.nickname;
     if (winnerUser) winnerUser.textContent = `@${winner.uniqueId}`;
     if (winnerNum) winnerNum.textContent = `#${winner.playerNumber}`;
@@ -1060,15 +996,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateTimerVisual(remaining, total) {
     if (timerDigits) timerDigits.textContent = remaining;
     if (timerCircleProgress) {
-      const perimeter = 283;
-      const fraction = Math.max(0, remaining / (total || 30));
-      const offset = perimeter - (fraction * perimeter);
-      timerCircleProgress.style.strokeDashoffset = offset;
-      if (remaining <= 5) {
-        timerCircleProgress.style.stroke = '#ef4444';
-      } else {
-        timerCircleProgress.style.stroke = '#f59e0b';
-      }
+      const frac = Math.max(0, remaining / (total || 30));
+      timerCircleProgress.style.strokeDashoffset = 283 - (frac * 283);
+      timerCircleProgress.style.stroke = remaining <= 5 ? '#ef4444' : '#f59e0b';
     }
   }
 
@@ -1076,21 +1006,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (actionBannerText) actionBannerText.textContent = text;
   }
 
-  // -------------------------------------------------------------
-  // Drawer Actions Implementation
-  // -------------------------------------------------------------
+  // ── Drawer Actions ────────────────────────────────────────
   function updateDrawerUI() {
     if (!currentSnapshot) return;
-    if (drawerStateBadge) {
-      drawerStateBadge.textContent = `الجولة #${currentSnapshot.roundNumber} (${currentSnapshot.state})`;
-    }
-    if (btnDrawerToggleJoin) {
-      btnDrawerToggleJoin.textContent = currentSnapshot.settings?.isJoinOpen ? '🔒 إغلاق الانضمام' : '🔓 فتح الانضمام';
-    }
+    if (drawerStateBadge) drawerStateBadge.textContent = `الجولة #${currentSnapshot.roundNumber} (${currentSnapshot.state})`;
+    if (btnDrawerToggleJoin) btnDrawerToggleJoin.textContent = currentSnapshot.settings?.isJoinOpen ? '🔒 إغلاق الانضمام' : '🔓 فتح الانضمام';
     populateDrawerSettings();
   }
 
-  // Apply wheel configuration from snapshot
   function applyWheelConfigFromSnapshot() {
     const wc = currentSnapshot?.settings?.wheelConfig;
     if (wc) {
@@ -1106,531 +1029,392 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnDrawerConnect) {
     btnDrawerConnect.addEventListener('click', async () => {
       const username = drawerTiktokUser.value.trim().replace(/^@/, '');
-      if (!username) {
-        alert('يرجى إدخال اسم حساب تيك توك صاحب البث');
-        return;
-      }
-      drawerTiktokStatusText.innerHTML = '<span style="color: #f59e0b;">⏳ جاري محاولة الاتصال بالبث المباشر...</span>';
+      if (!username) { alert('يرجى إدخال اسم حساب تيك توك صاحب البث'); return; }
 
-      if (socket && socket.connected) {
-        try {
-          const res = await fetch('/api/tiktok/connect', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username })
-          });
-          const data = await res.json();
+      if (drawerTiktokStatusText) drawerTiktokStatusText.innerHTML = `<span style="color:#f59e0b;">⏳ جاري محاولة الاتصال بـ @${username}...</span>`;
+
+      if (socketConnected && BACKEND_URL) {
+        const data = await apiPost('/tiktok/connect', { username });
+        if (data) {
           if (!data.success) {
-            alert('تنبيه: ' + (data.error || 'تأكد من فتح البث المباشر في تيك توك'));
+            if (drawerTiktokStatusText) drawerTiktokStatusText.innerHTML = `<span style="color:#ef4444;">❌ ${data.error || 'فشل الاتصال'}</span><br><small style="color:#94a3b8;">💡 جرب وضع TikFinity بدلاً من الربط المباشر</small>`;
           }
-        } catch (e) {
-          alert('خطأ: ' + e.message);
         }
-        return;
+      } else {
+        // Demo mode simulation
+        setTimeout(() => {
+          const mockStatus = { status: 'connected', username, connectionMode: 'simulator', roomInfo: { viewerCount: Math.floor(Math.random() * 200) + 50 } };
+          updateTikTokBadge(mockStatus);
+          if (bc) bc.postMessage({ type: 'tiktok_status', status: mockStatus });
+          alert(`✅ تم ربط @${username} في وضع المحاكاة`);
+        }, 500);
       }
-
-      // Client-side Demo Simulator Mode
-      setTimeout(() => {
-        const mockStatus = {
-          status: 'connected',
-          username: username,
-          roomInfo: { title: `بث تجريبي - @${username}`, viewerCount: 150 }
-        };
-        updateTikTokBadge(mockStatus);
-        drawerTiktokStatusText.innerHTML = `<span style="color: #10b981;">✅ متصل بالبث (@${username})</span>`;
-        if (bc) bc.postMessage({ type: 'tiktok_status', status: mockStatus });
-        alert(`✅ تم ربط حساب تيك توك بنجاح في وضع المحاكاة: @${username}`);
-      }, 500);
     });
   }
 
   if (btnDrawerDisconnect) {
     btnDrawerDisconnect.addEventListener('click', async () => {
-      if (socket && socket.connected) {
-        await fetch('/api/tiktok/disconnect', { method: 'POST' });
+      if (socketConnected) await apiPost('/tiktok/disconnect');
+      const s = { status: 'disconnected', username: null };
+      updateTikTokBadge(s);
+      if (bc) bc.postMessage({ type: 'tiktok_status', status: s });
+    });
+  }
+
+  // Game Control Buttons in Drawer (with socket guard)
+  const drawerControlActions = [
+    [btnDrawerToggleJoin, '/control/join', {}],
+    [btnDrawerNextRound, '/control/round/next', {}],
+    [btnDrawerCancelElim, '/control/elimination/cancel', {}],
+    [btnDrawerPauseTimer, '/control/timer/pause', {}],
+    [btnDrawerResumeTimer, '/control/timer/resume', {}],
+    [btnDrawerExtendTimer, '/control/timer/extend', { seconds: 15 }]
+  ];
+
+  drawerControlActions.forEach(([btn, path, body]) => {
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      if (socketConnected) {
+        await apiPost(path, body);
+      } else {
+        appendDrawerLog({ timestamp: new Date().toISOString(), type: 'INFO', message: `ℹ️ ${btn.textContent.trim()} - يتطلب اتصال بالخادم` });
       }
-      const mockStatus = { status: 'disconnected', username: null };
-      updateTikTokBadge(mockStatus);
-      drawerTiktokStatusText.innerHTML = `<span style="color: #9ca3af;">⚪ غير متصل بالبث</span>`;
-      if (bc) bc.postMessage({ type: 'tiktok_status', status: mockStatus });
     });
-  }
-
-  // Game Control buttons in Drawer
-  if (btnDrawerToggleJoin) {
-    btnDrawerToggleJoin.addEventListener('click', async () => {
-      await fetch('/api/control/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-    });
-  }
-
-  if (btnDrawerNextRound) {
-    btnDrawerNextRound.addEventListener('click', async () => {
-      await fetch('/api/control/round/next', { method: 'POST' });
-    });
-  }
+  });
 
   if (btnDrawerFinalRound) {
     btnDrawerFinalRound.addEventListener('click', async () => {
       if (confirm('هل تريد بدء مرحلة الحسم النهائي الآن؟')) {
-        await fetch('/api/control/round/final', { method: 'POST' });
-        adminDrawerModal.classList.remove('active');
+        if (socketConnected) {
+          await apiPost('/control/round/final');
+          adminDrawerModal.classList.remove('active');
+        } else {
+          alert('يتطلب هذا الإجراء اتصالاً بالخادم');
+        }
       }
-    });
-  }
-
-  if (btnDrawerCancelElim) {
-    btnDrawerCancelElim.addEventListener('click', async () => {
-      await fetch('/api/control/elimination/cancel', { method: 'POST' });
-    });
-  }
-
-  if (btnDrawerPauseTimer) {
-    btnDrawerPauseTimer.addEventListener('click', async () => {
-      await fetch('/api/control/timer/pause', { method: 'POST' });
-    });
-  }
-
-  if (btnDrawerResumeTimer) {
-    btnDrawerResumeTimer.addEventListener('click', async () => {
-      await fetch('/api/control/timer/resume', { method: 'POST' });
-    });
-  }
-
-  if (btnDrawerExtendTimer) {
-    btnDrawerExtendTimer.addEventListener('click', async () => {
-      await fetch('/api/control/timer/extend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seconds: 15 })
-      });
     });
   }
 
   if (btnDrawerResetGame) {
     btnDrawerResetGame.addEventListener('click', async () => {
-      if (confirm('تحذير: هل أنت متأكد من رغبتك في إعادة تعيين اللعبة ومسح اللاعبين؟')) {
-        await fetch('/api/control/game/reset', { method: 'POST' });
+      if (confirm('تحذير: هل أنت متأكد من إعادة تعيين اللعبة؟')) {
+        if (socketConnected) {
+          await apiPost('/control/game/reset');
+        } else {
+          allPlayers = [];
+          currentSnapshot = { ...currentSnapshot, state: 'WAITING_FOR_PLAYERS', roundNumber: 1, chosenPlayer: null, targetPlayer: null };
+          hideAllModals();
+          renderAll();
+          if (bc) {
+            bc.postMessage({ type: 'game_reset' });
+            bc.postMessage({ type: 'players_updated', players: [] });
+          }
+        }
       }
     });
   }
 
-  // -------------------------------------------------------------
-  // Gift Configuration with Visual Image Picker
-  // -------------------------------------------------------------
+  // Gift Config Tab
   function renderGiftConfigTab() {
     if (!giftConfigContainer) return;
     const gifts = currentSnapshot?.settings?.gifts || {
-      defense: { giftName: 'وردة', giftId: 'rose', minCoins: 1, labelAr: 'هدية الدفاع عن النفس' },
-      shield: { giftName: 'نظارات', giftId: 'sunglasses', minCoins: 30, labelAr: 'هدية الحصانة / الدرع' },
-      rejoin: { giftName: 'قلب', giftId: 'heart', minCoins: 5, labelAr: 'هدية العودة إلى اللعبة' },
-      help: { giftName: 'كاب', giftId: 'cap', minCoins: 16, labelAr: 'هدية المساعدة / الإنقاذ' },
-      finalRound: { giftName: 'صاروخ', giftId: 'rocket', minCoins: 100, labelAr: 'هدية حسم الجولة' },
-      winnerChallenge: { giftName: 'تاج', giftId: 'crown', minCoins: 100, labelAr: 'هدية تحدي الفائز' }
+      defense: { giftName: 'وردة', giftId: 'rose', minCoins: 1 },
+      shield: { giftName: 'نظارات شمسية', giftId: 'sunglasses', minCoins: 199 },
+      rejoin: { giftName: 'قلب الحب', giftId: 'heart', minCoins: 49 },
+      finalRound: { giftName: 'صاروخ', giftId: 'rocket', minCoins: 4888 }
     };
 
     const categories = [
-      { key: 'defense', label: '🛡️ هدية الدفاع عن النفس', desc: 'يرسلها اللاعب المهدد لإنقاذ نفسه من الإقصاء' },
-      { key: 'shield', label: '🕶️ هدية الحصانة / الدرع', desc: 'تمنح اللاعب درعاً يحميه من أي استهداف' },
-      { key: 'rejoin', label: '🔄 هدية العودة إلى اللعبة', desc: 'يرسلها اللاعب المستبعد للعودة إلى اللعبة' },
-      { key: 'help', label: '❤️ هدية المساعدة / الإنقاذ', desc: 'يرسلها مشاهد لإنقاذ لاعب مستبعد' },
-      { key: 'finalRound', label: '🚀 هدية حسم الجولة', desc: 'حسم المواجهة النهائية' },
-      { key: 'winnerChallenge', label: '👑 هدية تحدي الفائز', desc: 'تحدي بطل الروليت' }
+      { key: 'defense', label: '🛡️ هدية الدفاع عن النفس' },
+      { key: 'shield', label: '🕶️ هدية الحصانة / الدرع' },
+      { key: 'rejoin', label: '🔄 هدية العودة إلى اللعبة' },
+      { key: 'help', label: '❤️ هدية المساعدة / الإنقاذ' },
+      { key: 'finalRound', label: '🚀 هدية حسم الجولة' },
+      { key: 'winnerChallenge', label: '👑 هدية تحدي الفائز' }
     ];
 
     giftConfigContainer.innerHTML = categories.map(cat => {
-      const currentGift = gifts[cat.key] || {};
-      const giftInfo = getGiftInfo(currentGift.giftId || currentGift.giftName || 'rose');
-
+      const cur = gifts[cat.key] || {};
+      const giftInfo = getGiftInfo(cur.giftId || cur.giftName || 'rose');
       return `
         <div class="gift-config-card" data-cat-key="${cat.key}">
-          <div class="gift-config-header">
-            <span class="gift-config-title">${cat.label}</span>
-          </div>
-          <div style="font-size:11px;color:#94a3b8;">${cat.desc}</div>
-
-          <!-- Current Selection Preview -->
+          <div class="gift-config-header"><span class="gift-config-title">${cat.label}</span></div>
           <div class="gift-current-preview">
-            <img class="gift-preview-img" src="${giftInfo.image}" alt="">
+            <img class="gift-preview-img" src="${giftInfo.image}" alt="" onerror="this.style.opacity='0.3'">
             <div class="gift-preview-details">
-              <div class="gift-preview-name">${currentGift.giftName || giftInfo.nameAr}</div>
-              <div class="gift-preview-coins">${currentGift.minCoins || giftInfo.coins} عملة (Coins)</div>
+              <div class="gift-preview-name">${cur.giftName || giftInfo.nameAr}</div>
+              <div class="gift-preview-coins">${cur.minCoins || giftInfo.coins} عملة</div>
             </div>
           </div>
-
-          <!-- Coins input -->
           <div class="gift-coins-input-row">
-            <label>قيمة العملات المطلوبة:</label>
-            <input type="number" class="drawer-input cat-coins-input" value="${currentGift.minCoins || giftInfo.coins}" min="1" data-cat="${cat.key}">
+            <label>قيمة العملات:</label>
+            <input type="number" class="drawer-input cat-coins-input" value="${cur.minCoins || giftInfo.coins}" min="1" data-cat="${cat.key}">
           </div>
-
-          <!-- Visual Gift Selector Bar -->
           <div style="font-size:12px;font-weight:700;color:#cbd5e1;margin-top:4px;">اختر من صور الهدايا:</div>
           <div class="gift-catalog-selector">
             ${giftCatalog.map(g => {
-              const isSelected = (currentGift.giftId === g.id) || (!currentGift.giftId && currentGift.giftName === g.nameAr);
-              return `
-                <button type="button" class="gift-item-btn ${isSelected ? 'selected' : ''}"
-                  onclick="window.selectGiftForCategory('${cat.key}', '${g.id}', '${g.nameAr}', ${g.coins})">
-                  <img src="${g.image}" alt="${g.nameAr}">
-                  <span>${g.nameAr}</span>
-                </button>
-              `;
+              const isSelected = cur.giftId === g.id;
+              return `<button type="button" class="gift-item-btn ${isSelected ? 'selected' : ''}"
+                onclick="window.selectGiftForCategory('${cat.key}', '${g.id}', '${g.nameAr}', ${g.coins})">
+                <img src="${g.image}" alt="${g.nameAr}" onerror="this.style.opacity='0.3'">
+                <span>${g.nameAr}</span>
+              </button>`;
             }).join('')}
           </div>
-        </div>
-      `;
+        </div>`;
     }).join('');
 
-    // Attach coins input change listeners
     document.querySelectorAll('.cat-coins-input').forEach(inp => {
       inp.addEventListener('change', async (e) => {
         const catKey = e.target.dataset.cat;
         const newCoins = parseInt(e.target.value, 10) || 1;
+        if (!currentSnapshot) return;
+        if (!currentSnapshot.settings.gifts) currentSnapshot.settings.gifts = {};
         if (!currentSnapshot.settings.gifts[catKey]) currentSnapshot.settings.gifts[catKey] = {};
         currentSnapshot.settings.gifts[catKey].minCoins = newCoins;
-        await saveCurrentGiftsConfig();
+        if (socketConnected) await apiPost('/settings', { gifts: currentSnapshot.settings.gifts });
+        else if (bc) bc.postMessage({ type: 'settings_updated', settings: currentSnapshot.settings });
       });
     });
   }
 
-  // Globally exposed for onclick
   window.selectGiftForCategory = async (catKey, giftId, giftName, defaultCoins) => {
     if (!currentSnapshot) return;
     if (!currentSnapshot.settings.gifts) currentSnapshot.settings.gifts = {};
     if (!currentSnapshot.settings.gifts[catKey]) currentSnapshot.settings.gifts[catKey] = {};
-
     currentSnapshot.settings.gifts[catKey].giftId = giftId;
     currentSnapshot.settings.gifts[catKey].giftName = giftName;
     currentSnapshot.settings.gifts[catKey].minCoins = defaultCoins;
 
-    await saveCurrentGiftsConfig();
+    if (socketConnected) await apiPost('/settings', { gifts: currentSnapshot.settings.gifts });
+    else if (bc) bc.postMessage({ type: 'settings_updated', settings: currentSnapshot.settings });
     renderGiftConfigTab();
+    updateGiftsLegend();
     renderHeader();
   };
 
-  async function saveCurrentGiftsConfig() {
-    try {
-      await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gifts: currentSnapshot.settings.gifts })
-      });
-    } catch (e) {
-      console.error('Failed to save gift config:', e);
-    }
-  }
-
-  // -------------------------------------------------------------
-  // Wheel Customization Handling
-  // -------------------------------------------------------------
+  // Wheel Config
   if (btnApplyWheelConfig) {
     btnApplyWheelConfig.addEventListener('click', async () => {
-      const theme = wheelThemeSelect ? wheelThemeSelect.value : 'casino';
-      const spinDuration = parseInt(wheelSpinDuration.value, 10) || 6500;
-      const showPlayerAvatars = wheelShowAvatars ? wheelShowAvatars.checked : true;
-      const showPlayerNames = wheelShowNames ? wheelShowNames.checked : true;
-
-      const wheelConfig = {
-        theme,
-        spinDuration,
-        showPlayerAvatars,
-        showPlayerNames
+      const wc = {
+        theme: wheelThemeSelect?.value || 'casino',
+        spinDuration: parseInt(wheelSpinDuration?.value || '6500', 10),
+        showPlayerAvatars: wheelShowAvatars?.checked !== false,
+        showPlayerNames: wheelShowNames?.checked !== false
       };
-
-      wheel.updateConfig(wheelConfig);
-
-      await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wheelConfig })
-      });
-
-      alert('تم تطبيق وتحديث شكل العجلة بنجاح! 🎡');
+      wheel.updateConfig(wc);
+      if (socketConnected) await apiPost('/settings', { wheelConfig: wc });
+      else if (bc) {
+        if (currentSnapshot?.settings) currentSnapshot.settings.wheelConfig = wc;
+        bc.postMessage({ type: 'settings_updated', settings: currentSnapshot?.settings });
+      }
+      alert('تم تطبيق شكل العجلة! 🎡');
     });
   }
 
   // Drawer Simulator
   if (btnDrawerMockTen) {
     btnDrawerMockTen.addEventListener('click', async () => {
-      if (socket && socket.connected) {
-        btnDrawerMockTen.disabled = true;
-        btnDrawerMockTen.textContent = 'جاري الإضافة... ⏳';
-        try {
-          const mockNames = [
-            { name: 'محمد 👑', user: 'mohammed_king' },
-            { name: 'سارة ✨', user: 'queen_sara' },
-            { name: 'أحمد ⚡', user: 'ahmed_hawk' },
-            { name: 'فهد 🏎️', user: 'fahad_hero' },
-            { name: 'نورة 🌟', user: 'noura_live' },
-            { name: 'خالد 🚀', user: 'khaled_star' },
-            { name: 'مريم 🌸', user: 'mariam_rose' },
-            { name: 'علي 🔥', user: 'ali_chief' },
-            { name: 'يوسف 🏆', user: 'yousef_leopard' },
-            { name: 'ليلى 💎', user: 'laila_pearl' }
-          ];
-
-          for (const m of mockNames) {
-            await fetch('/api/simulate/join', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                nickname: m.name,
-                uniqueId: m.user,
-                avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${m.user}`
-              })
-            });
-          }
-        } catch (e) {
-          alert('خطأ: ' + e.message);
-        } finally {
-          btnDrawerMockTen.disabled = false;
-          btnDrawerMockTen.textContent = 'إضافة 10 لاعبين تجريبيين 👥';
+      if (socketConnected) {
+        const mockNames = [
+          { name: 'محمد 👑', user: 'mohammed_king' }, { name: 'سارة ✨', user: 'queen_sara' },
+          { name: 'أحمد ⚡', user: 'ahmed_hawk' }, { name: 'فهد 🏎️', user: 'fahad_hero' },
+          { name: 'نورة 🌟', user: 'noura_live' }, { name: 'خالد 🚀', user: 'khaled_star' },
+          { name: 'مريم 🌸', user: 'mariam_rose' }, { name: 'علي 🔥', user: 'ali_chief' },
+          { name: 'يوسف 🏆', user: 'yousef_leo' }, { name: 'ليلى 💎', user: 'laila_pearl' }
+        ];
+        for (const m of mockNames) {
+          await apiPost('/simulate/join', { nickname: m.name, uniqueId: m.user, avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${m.user}` });
         }
-        return;
+      } else {
+        // Demo mode
+        const mockList = [
+          { name:'محمد 👑', user:'mohammed_king', gift:'lion', shield:false },
+          { name:'سارة ✨', user:'queen_sara', gift:'heart', shield:true },
+          { name:'أحمد ⚡', user:'ahmed_hawk', gift:'cap', shield:false },
+          { name:'فهد 🏎️', user:'fahad_hero', gift:'car', shield:false },
+          { name:'نورة 🌟', user:'noura_live', gift:'pearl', shield:false },
+          { name:'خالد 🚀', user:'khaled_star', gift:'rocket', shield:false },
+          { name:'مريم 🌸', user:'mariam_rose', gift:'rose', shield:false },
+          { name:'علي 🔥', user:'ali_chief', gift:'trophy', shield:false },
+          { name:'يوسف 🏆', user:'yousef_leo', gift:'crown', shield:false },
+          { name:'ليلى 💎', user:'laila_pearl', gift:'perfume', shield:false }
+        ];
+        allPlayers = mockList.map((m, i) => ({
+          id: `sim_${i+1}`, playerNumber: i+1, nickname: m.name, uniqueId: m.user,
+          status: m.shield ? 'immune' : 'active', hasShield: m.shield,
+          coins: 0, killsCount: 0, profilePictureUrl: `assets/gifts/${m.gift}.png`
+        }));
+        if (currentSnapshot) { currentSnapshot.state = 'READY'; currentSnapshot.roundNumber = 1; }
+        wheel.setPlayers(allPlayers);
+        renderAll();
+        if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers });
+        alert('✅ تمت إضافة 10 لاعبين!');
       }
-
-      // Client-side 10 Players Simulation
-      const mockList = [
-        { name: 'محمد 👑', user: 'mohammed_king', gift: 'lion', shield: false },
-        { name: 'سارة ✨', user: 'queen_sara', gift: 'heart', shield: true },
-        { name: 'أحمد ⚡', user: 'ahmed_hawk', gift: 'cap', shield: false },
-        { name: 'فهد 🏎️', user: 'fahad_hero', gift: 'car', shield: false },
-        { name: 'نورة 🌟', user: 'noura_live', gift: 'pearl', shield: false },
-        { name: 'خالد 🚀', user: 'khaled_star', gift: 'rocket', shield: false },
-        { name: 'مريم 🌸', user: 'mariam_rose', gift: 'rose', shield: false },
-        { name: 'علي 🔥', user: 'ali_chief', gift: 'trophy', shield: false },
-        { name: 'يوسف 🏆', user: 'yousef_leopard', gift: 'crown', shield: false },
-        { name: 'ليلى 💎', user: 'laila_pearl', gift: 'perfume', shield: false }
-      ];
-
-      allPlayers = mockList.map((m, idx) => ({
-        id: `sim_${Date.now()}_${idx + 1}`,
-        playerNumber: idx + 1,
-        nickname: m.name,
-        uniqueId: m.user,
-        status: m.shield ? 'immune' : 'active',
-        hasShield: m.shield,
-        coins: Math.floor(Math.random() * 50),
-        killsCount: 0,
-        profilePictureUrl: `assets/gifts/${m.gift}.png`
-      }));
-
-      if (currentSnapshot) {
-        currentSnapshot.state = 'READY';
-        currentSnapshot.roundNumber = 1;
-      }
-      wheel.setPlayers(allPlayers);
-      renderAll();
-      if (bc) {
-        bc.postMessage({ type: 'players_updated', players: allPlayers });
-        if (currentSnapshot) bc.postMessage({ type: 'state_updated', snapshot: currentSnapshot });
-      }
-      alert('✅ تمت إضافة 10 لاعبين بنجاح! تم تحديث العجلة فوراً.');
     });
   }
 
   if (btnSimDrawerJoin) {
     btnSimDrawerJoin.addEventListener('click', async () => {
-      const u = simDrawerJoinUser.value.trim().replace(/^@/, '') || `user_${Date.now() % 1000}`;
-      const n = simDrawerJoinNick.value.trim() || u;
-
-      if (socket && socket.connected) {
-        await fetch('/api/simulate/join', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            nickname: n,
-            uniqueId: u,
-            avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${u}`
-          })
-        });
-        simDrawerJoinNick.value = '';
-        simDrawerJoinUser.value = '';
-        return;
+      const u = simDrawerJoinUser?.value?.trim().replace(/^@/, '') || `user_${Date.now() % 1000}`;
+      const n = simDrawerJoinNick?.value?.trim() || u;
+      if (socketConnected) {
+        await apiPost('/simulate/join', { nickname: n, uniqueId: u, avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${u}` });
+      } else {
+        const nextNum = allPlayers.length > 0 ? Math.max(...allPlayers.map(p => p.playerNumber || 0)) + 1 : 1;
+        const gifts = ['lion','heart','cap','rocket','rose','trophy','pearl','car'];
+        allPlayers.push({ id:`p_${Date.now()}`, playerNumber:nextNum, nickname:n, uniqueId:u, status:'active', hasShield:false, coins:0, killsCount:0, profilePictureUrl:`assets/gifts/${gifts[nextNum % gifts.length]}.png` });
+        wheel.setPlayers(allPlayers);
+        renderAll();
+        if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers });
+        alert(`✅ انضم ${n} (#${nextNum})`);
       }
-
-      // Client-side Sim Join
-      const nextNum = allPlayers.length > 0 ? Math.max(...allPlayers.map(p => p.playerNumber || 0)) + 1 : 1;
-      const gifts = ['lion', 'heart', 'cap', 'rocket', 'rose', 'trophy', 'pearl', 'car'];
-      const newP = {
-        id: `p_${Date.now()}`,
-        playerNumber: nextNum,
-        nickname: n,
-        uniqueId: u,
-        status: 'active',
-        hasShield: false,
-        coins: 0,
-        killsCount: 0,
-        profilePictureUrl: `assets/gifts/${gifts[nextNum % gifts.length]}.png`
-      };
-
-      allPlayers.push(newP);
-      wheel.setPlayers(allPlayers);
-      renderAll();
-      if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers });
-      simDrawerJoinNick.value = '';
-      simDrawerJoinUser.value = '';
-      alert(`✅ انضم اللاعب: ${n} (#${nextNum})`);
+      if (simDrawerJoinNick) simDrawerJoinNick.value = '';
+      if (simDrawerJoinUser) simDrawerJoinUser.value = '';
     });
   }
 
   if (btnSimDrawerComment) {
     btnSimDrawerComment.addEventListener('click', async () => {
-      const uniqueId = simDrawerCommentUser.value;
-      const commentText = simDrawerCommentText.value.trim();
-      if (!commentText) return;
-
-      if (socket && socket.connected) {
-        await fetch('/api/simulate/comment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uniqueId, commentText })
-        });
-        simDrawerCommentText.value = '';
-        adminDrawerModal.classList.remove('active');
-        return;
+      const uid = simDrawerCommentUser?.value;
+      const txt = simDrawerCommentText?.value?.trim();
+      if (!txt) return;
+      if (socketConnected) {
+        await apiPost('/simulate/comment', { uniqueId: uid, commentText: txt });
+      } else {
+        const num = parseInt(txt, 10);
+        if (!isNaN(num)) window.selectTargetPlayer(num);
       }
-
-      // Client-side Target Select by comment
-      const targetNum = parseInt(commentText, 10);
-      if (!isNaN(targetNum)) {
-        window.selectTargetPlayer(targetNum);
-      }
-      simDrawerCommentText.value = '';
+      if (simDrawerCommentText) simDrawerCommentText.value = '';
       adminDrawerModal.classList.remove('active');
     });
   }
 
   if (btnSimDrawerAutoTarget) {
     btnSimDrawerAutoTarget.addEventListener('click', () => {
-      if (!currentSnapshot?.chosenPlayer) {
-        alert('يجب تشغيل الروليت واختيار لاعب أولاً!');
-        return;
-      }
-      simDrawerCommentUser.value = currentSnapshot.chosenPlayer.uniqueId;
-
+      if (!currentSnapshot?.chosenPlayer) { alert('يجب تشغيل الروليت أولاً!'); return; }
+      if (simDrawerCommentUser) simDrawerCommentUser.value = currentSnapshot.chosenPlayer.uniqueId;
       const eligible = allPlayers.filter(p =>
         (p.status === 'active' || p.status === 'immune') &&
-        p.id !== currentSnapshot.chosenPlayer.id &&
-        !p.hasShield && p.status !== 'immune'
+        p.id !== currentSnapshot.chosenPlayer.id && !p.hasShield && p.status !== 'immune'
       );
-
-      if (eligible.length > 0) {
-        simDrawerCommentText.value = `${eligible[0].playerNumber}`;
-      } else {
-        simDrawerCommentText.value = '2';
-      }
+      if (simDrawerCommentText) simDrawerCommentText.value = eligible.length > 0 ? `${eligible[0].playerNumber}` : '2';
     });
   }
 
-  // Drawer Gift buttons
   document.querySelectorAll('[data-drawer-gift]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const giftType = btn.dataset.drawerGift;
-      let uniqueId = simDrawerCommentUser.value;
-      let giftName = 'وردة';
-      let coins = 1;
-
       const gConf = currentSnapshot?.settings?.gifts;
+      let uniqueId = simDrawerCommentUser?.value || (allPlayers[0]?.uniqueId) || 'user_1';
+      let giftName = 'وردة', coins = 1;
 
       if (giftType === 'defense') {
-        if (currentSnapshot?.targetPlayer) {
-          uniqueId = currentSnapshot.targetPlayer.uniqueId;
-        }
-        giftName = gConf?.defense?.giftName || 'وردة';
-        coins = gConf?.defense?.minCoins || 1;
+        if (currentSnapshot?.targetPlayer) uniqueId = currentSnapshot.targetPlayer.uniqueId;
+        giftName = gConf?.defense?.giftName || 'وردة'; coins = gConf?.defense?.minCoins || 1;
       } else if (giftType === 'rejoin') {
-        const eliminated = allPlayers.filter(p => p.status === 'eliminated');
-        if (eliminated.length > 0) uniqueId = eliminated[0].uniqueId;
-        giftName = gConf?.rejoin?.giftName || 'قلب';
-        coins = gConf?.rejoin?.minCoins || 5;
+        const elim = allPlayers.filter(p => p.status === 'eliminated');
+        if (elim.length > 0) uniqueId = elim[0].uniqueId;
+        giftName = gConf?.rejoin?.giftName || 'قلب'; coins = gConf?.rejoin?.minCoins || 5;
       } else if (giftType === 'help') {
-        giftName = gConf?.help?.giftName || 'كاب';
-        coins = gConf?.help?.minCoins || 16;
+        giftName = gConf?.help?.giftName || 'كاب'; coins = gConf?.help?.minCoins || 16;
       } else if (giftType === 'shield') {
-        giftName = gConf?.shield?.giftName || 'نظارات';
-        coins = gConf?.shield?.minCoins || 30;
+        giftName = gConf?.shield?.giftName || 'نظارات'; coins = gConf?.shield?.minCoins || 30;
       } else if (giftType === 'final') {
-        giftName = gConf?.finalRound?.giftName || 'صاروخ';
-        coins = gConf?.finalRound?.minCoins || 100;
+        giftName = gConf?.finalRound?.giftName || 'صاروخ'; coins = gConf?.finalRound?.minCoins || 100;
       }
 
-      await fetch('/api/simulate/gift', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uniqueId, giftName, coins, repeatCount: 1 })
-      });
+      if (socketConnected) {
+        await apiPost('/simulate/gift', { uniqueId, giftName, coins, repeatCount: 1 });
+      } else {
+        const p = allPlayers.find(x => x.uniqueId === uniqueId);
+        if (p) {
+          p.coins = (p.coins || 0) + coins;
+          if (giftType === 'shield') { p.hasShield = true; p.status = 'immune'; }
+          else if (giftType === 'rejoin' && p.status === 'eliminated') { p.status = 'active'; }
+        }
+        renderAll();
+        if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers });
+        alert(`🎁 هدية [${giftName}] من @${uniqueId}`);
+      }
       adminDrawerModal.classList.remove('active');
     });
   });
 
-  // Drawer Player Add
+  // Drawer Player Management
   if (drawerAddPlayerForm) {
     drawerAddPlayerForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const nickname = drawerAddNick.value.trim();
-      const uniqueId = drawerAddUser.value.trim();
+      const nickname = drawerAddNick?.value?.trim();
+      const uniqueId = drawerAddUser?.value?.trim();
       if (!nickname) return;
 
-      await fetch('/api/players/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname, uniqueId })
-      });
-      drawerAddNick.value = '';
-      drawerAddUser.value = '';
+      if (socketConnected) {
+        await apiPost('/players/add', { nickname, uniqueId });
+      } else {
+        const nextNum = allPlayers.length > 0 ? Math.max(...allPlayers.map(p => p.playerNumber || 0)) + 1 : 1;
+        const gifts = ['lion','heart','cap','rocket','rose','trophy','pearl','car'];
+        allPlayers.push({ id:`p_${Date.now()}`, playerNumber:nextNum, nickname, uniqueId: uniqueId || `user_${nextNum}`, status:'active', hasShield:false, coins:0, killsCount:0, profilePictureUrl:`assets/gifts/${gifts[nextNum % gifts.length]}.png` });
+        wheel.setPlayers(allPlayers);
+        renderAll();
+        if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers });
+        alert(`✅ تمت إضافة ${nickname}`);
+      }
+      if (drawerAddNick) drawerAddNick.value = '';
+      if (drawerAddUser) drawerAddUser.value = '';
     });
   }
 
   function renderDrawerPlayersTable() {
     if (!drawerPlayersTableBody) return;
     drawerPlayersTableBody.innerHTML = allPlayers.map(p => {
-      let stColor = '#34d399';
-      let stText = 'نشط 🟢';
-      if (p.status === 'eliminated') {
-        stColor = '#f87171';
-        stText = 'مستبعد ☠️';
-      } else if (p.hasShield || p.status === 'immune') {
-        stColor = '#60a5fa';
-        stText = 'محصن 🛡️';
-      }
+      let stColor = '#34d399', stText = 'نشط 🟢';
+      if (p.status === 'eliminated') { stColor = '#f87171'; stText = 'مستبعد ☠️'; }
+      else if (p.hasShield || p.status === 'immune') { stColor = '#60a5fa'; stText = 'محصن 🛡️'; }
 
       return `
-        <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-          <td style="padding: 6px 8px;"><strong>#${p.playerNumber}</strong></td>
-          <td style="padding: 6px 8px;">
-            <img src="${p.profilePictureUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + p.playerNumber}" style="width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin-left: 6px;" alt="">
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+          <td style="padding:6px 8px;"><strong>#${p.playerNumber}</strong></td>
+          <td style="padding:6px 8px;">
+            <img src="${p.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.playerNumber}`}" style="width:24px;height:24px;border-radius:50%;vertical-align:middle;margin-left:6px;" alt="" onerror="this.style.display='none'">
             <span>${escapeHtml(p.nickname)}</span>
           </td>
-          <td style="padding: 6px 8px; color: ${stColor}; font-weight: 700;">${stText}</td>
-          <td style="padding: 6px 8px;">
-            ${p.status === 'eliminated' ? `
-              <button class="drawer-btn" style="padding: 2px 6px; font-size: 11px; background: #16a34a;" onclick="window.drawerRevivePlayer('${p.id}')">إعادة 🔄</button>
-            ` : `
-              <button class="drawer-btn" style="padding: 2px 6px; font-size: 11px;" onclick="window.drawerToggleShield('${p.id}', ${!p.hasShield})">
-                ${p.hasShield ? 'إلغاء الحصانة' : 'حصانة 🛡️'}
-              </button>
-            `}
-            <button class="drawer-btn drawer-btn-danger" style="padding: 2px 6px; font-size: 11px;" onclick="window.drawerDeletePlayer('${p.id}')">حذف</button>
+          <td style="padding:6px 8px;color:${stColor};font-weight:700;">${stText}</td>
+          <td style="padding:6px 8px;">
+            ${p.status === 'eliminated'
+              ? `<button class="drawer-btn" style="padding:2px 6px;font-size:11px;background:#16a34a;" onclick="window.drawerRevivePlayer('${p.id}')">إعادة 🔄</button>`
+              : `<button class="drawer-btn" style="padding:2px 6px;font-size:11px;" onclick="window.drawerToggleShield('${p.id}', ${!p.hasShield})">${p.hasShield ? 'إلغاء الحصانة' : 'حصانة 🛡️'}</button>`
+            }
+            <button class="drawer-btn drawer-btn-danger" style="padding:2px 6px;font-size:11px;" onclick="window.drawerDeletePlayer('${p.id}')">حذف</button>
           </td>
-        </tr>
-      `;
+        </tr>`;
     }).join('');
   }
 
   window.drawerRevivePlayer = async (id) => {
-    await fetch(`/api/players/${id}/revive`, { method: 'POST' });
+    if (socketConnected) { await apiPost(`/players/${id}/revive`.replace('/api', '')); }
+    else {
+      const p = allPlayers.find(x => x.id === id);
+      if (p) { p.status = 'active'; renderAll(); if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers }); }
+    }
   };
   window.drawerToggleShield = async (id, hasShield) => {
-    await fetch(`/api/players/${id}/shield`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hasShield, rounds: 1 })
-    });
+    if (socketConnected) {
+      const url = BACKEND_URL ? `${BACKEND_URL}/api/players/${id}/shield` : `/api/players/${id}/shield`;
+      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hasShield, rounds: 1 }) });
+    } else {
+      const p = allPlayers.find(x => x.id === id);
+      if (p) { p.hasShield = hasShield; p.status = hasShield ? 'immune' : 'active'; renderAll(); if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers }); }
+    }
   };
   window.drawerDeletePlayer = async (id) => {
-    if (confirm('حذف هذا اللاعب؟')) {
-      await fetch(`/api/players/${id}`, { method: 'DELETE' });
+    if (!confirm('حذف هذا اللاعب؟')) return;
+    if (socketConnected) {
+      const url = BACKEND_URL ? `${BACKEND_URL}/api/players/${id}` : `/api/players/${id}`;
+      await fetch(url, { method: 'DELETE' });
+    } else {
+      allPlayers = allPlayers.filter(p => p.id !== id);
+      wheel.setPlayers(allPlayers); renderAll(); if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers });
     }
   };
 
@@ -1638,7 +1422,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!simDrawerCommentUser) return;
     const cur = simDrawerCommentUser.value;
     simDrawerCommentUser.innerHTML = allPlayers.map(p =>
-      `<option value="${p.uniqueId}">#${p.playerNumber} - ${p.nickname}</option>`
+      `<option value="${p.uniqueId}">#${p.playerNumber} - ${p.nickname} (@${p.uniqueId})</option>`
     ).join('');
     if (cur) simDrawerCommentUser.value = cur;
   }
@@ -1648,21 +1432,21 @@ document.addEventListener('DOMContentLoaded', () => {
     drawerSettingsForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const updated = {
-        joinKeyword: setDrawerJoinKw.value.trim(),
-        maxPlayers: parseInt(setDrawerMaxPlayers.value, 10),
-        timeoutBehavior: setDrawerTimeout.value,
+        joinKeyword: setDrawerJoinKw?.value?.trim() || 'تم',
+        maxPlayers: parseInt(setDrawerMaxPlayers?.value || '30', 10),
+        timeoutBehavior: setDrawerTimeout?.value || 'skip',
         timers: {
-          targetSelectDuration: parseInt(setDrawerTargetSec.value, 10),
-          defenseDuration: parseInt(setDrawerDefSec.value, 10)
+          targetSelectDuration: parseInt(setDrawerTargetSec?.value || '20', 10),
+          defenseDuration: parseInt(setDrawerDefSec?.value || '30', 10)
         }
       };
-
-      await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated)
-      });
-      alert('تم حفظ الإعدادات بنجاح!');
+      if (socketConnected) {
+        await apiPost('/settings', updated);
+      } else {
+        if (currentSnapshot?.settings) Object.assign(currentSnapshot.settings, updated);
+        if (bc) bc.postMessage({ type: 'settings_updated', settings: currentSnapshot?.settings });
+      }
+      alert('تم حفظ الإعدادات! ✅');
     });
   }
 
@@ -1680,38 +1464,30 @@ document.addEventListener('DOMContentLoaded', () => {
   function appendDrawerLog(entry) {
     if (!drawerLogsContainer) return;
     const row = document.createElement('div');
-    row.style.padding = '4px 8px';
-    row.style.background = 'rgba(255,255,255,0.03)';
-    row.style.borderRadius = '6px';
-    const timeStr = new Date(entry.timestamp).toLocaleTimeString();
-    row.innerHTML = `<span style="color: var(--text-muted);">[${timeStr}]</span> <span style="color: #e2e8f0;">${escapeHtml(entry.message)}</span>`;
+    row.style.cssText = 'padding:4px 8px;background:rgba(255,255,255,0.03);border-radius:6px;';
+    const timeStr = new Date(entry.timestamp).toLocaleTimeString('ar');
+    row.innerHTML = `<span style="color:var(--text-muted);">[${timeStr}]</span> <span style="color:#e2e8f0;">${escapeHtml(entry.message)}</span>`;
     drawerLogsContainer.prepend(row);
   }
 
   if (btnDrawerClearLogs) {
     btnDrawerClearLogs.addEventListener('click', async () => {
-      await fetch('/api/logs', { method: 'DELETE' });
-      drawerLogsContainer.innerHTML = '';
+      if (socketConnected) {
+        const url = BACKEND_URL ? `${BACKEND_URL}/api/logs` : '/api/logs';
+        await fetch(url, { method: 'DELETE' }).catch(() => {});
+      }
+      if (drawerLogsContainer) drawerLogsContainer.innerHTML = '';
     });
   }
 
-  // Fetch initial logs
-  fetch('/api/logs?limit=40')
-    .then(r => r.json())
-    .then(d => {
-      if (d.logs && drawerLogsContainer) {
-        drawerLogsContainer.innerHTML = '';
-        d.logs.reverse().forEach(appendDrawerLog);
-      }
-    });
+  if (BACKEND_URL && socketConnected) {
+    fetch(`${BACKEND_URL}/api/logs?limit=40`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.logs) d.logs.reverse().forEach(appendDrawerLog); })
+      .catch(() => {});
+  }
 
   function escapeHtml(str) {
-    return (str || '').replace(/[&<>'"]/g, tag => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      "'": '&#39;',
-      '"': '&quot;'
-    }[tag] || tag));
+    return (str || '').replace(/[&<>'"]/g, tag => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[tag] || tag));
   }
 });

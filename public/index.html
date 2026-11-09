@@ -334,7 +334,7 @@
           </div>
 
           <div class="drawer-actions">
-            <a href="/admin" target="_blank" class="drawer-btn" style="padding: 4px 10px; font-size: 12px; text-decoration: none;" title="فتح في نافذة مستقلة">
+            <a href="admin.html" target="_blank" class="drawer-btn" style="padding: 4px 10px; font-size: 12px; text-decoration: none;" title="فتح في نافذة مستقلة">
               نافذة مستقلة ↗
             </a>
             <button id="btnCloseAdminDrawer" class="drawer-close-btn" title="إغلاق">✕</button>
@@ -582,6 +582,11 @@
   </div>
 
   <!-- Scripts -->
+  <script>
+    // 🌐 إعداد رابط سيرفر الباك إند (Railway):
+    // عند نشر الباك إند على Railway، ضع رابطه هنا للاتصال المباشر:
+    window.__RAILWAY_URL__ = window.__RAILWAY_URL__ || '';
+  </script>
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>
     // Fallback if CDN fails or local socket.io

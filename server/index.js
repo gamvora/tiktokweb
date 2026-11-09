@@ -12,23 +12,62 @@ const createApiRouter = require('./routes/api');
 
 const app = express();
 const server = http.createServer(app);
+
+// ─── CORS: allow Vercel frontend + local dev ───────────────────────────────
+const allowedOrigins = [
+  'http://localhost:3001',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  // Vercel - set FRONTEND_URL env var in Railway to your Vercel URL
+  process.env.FRONTEND_URL,
+  // Allow all vercel.app subdomains
+  /\.vercel\.app$/,
+  // Allow all github.io subdomains
+  /\.github\.io$/
+].filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (Postman, server-to-server, etc.)
+    if (!origin) return callback(null, true);
+    
+    const isAllowed = allowedOrigins.some(o => {
+      if (o instanceof RegExp) return o.test(origin);
+      return o === origin;
+    });
+    
+    if (isAllowed) return callback(null, true);
+    
+    // Also allow in development
+    if (process.env.NODE_ENV !== 'production') return callback(null, true);
+    
+    callback(new Error(`CORS blocked: ${origin}`));
+  },
+  credentials: true
+};
+
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Socket.IO with CORS
 const io = new Server(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST']
-  }
+    methods: ['GET', 'POST'],
+    credentials: false
+  },
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Serve static frontend files (both public and root for full compatibility)
+// Serve static frontend (for local npm start)
 app.use(express.static(path.join(__dirname, '..', 'public')));
-app.use(express.static(path.join(__dirname, '..')));
+app.use('/assets', express.static(path.join(__dirname, '..', 'assets')));
+app.use('/assets', express.static(path.join(__dirname, '..', 'public', 'assets')));
 
-// Initialize Core Instances
+// Initialize core instances
 const gameState = new GameState();
 const tiktokConnector = new TikTokConnector(gameState);
 
@@ -36,175 +75,62 @@ const tiktokConnector = new TikTokConnector(gameState);
 app.use('/api', createApiRouter(gameState, tiktokConnector));
 app.use('/api/tikfinity', createTikFinityRouter(gameState, tiktokConnector));
 
-// Explicit route for admin and overlay
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
-});
+// HTML routes for local dev
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
+app.get('/overlay', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'admin.html')));
 
-app.get('/overlay', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
-});
-
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
-});
-
-// -------------------------------------------------------------
-// Socket.IO Real-time Events
-// -------------------------------------------------------------
+// ─── Socket.IO Real-time Events ──────────────────────────────────────────────
 
 io.on('connection', (socket) => {
-  console.log(`[Socket.IO] Client connected: ${socket.id}`);
+  console.log(`[Socket.IO] Client connected: ${socket.id} from ${socket.handshake.headers.origin || 'unknown'}`);
 
-  // Send initial snapshot immediately upon connection
   socket.emit('init_sync', {
     snapshot: gameState.getSnapshot(),
     players: gameState.players,
     tiktokStatus: tiktokConnector.getStatus()
   });
 
-  // Client commands via Socket
   socket.on('request_state', () => {
     socket.emit('state_updated', gameState.getSnapshot());
+    socket.emit('players_updated', gameState.players);
   });
 
   socket.on('disconnect', () => {
-    // console.log(`[Socket.IO] Client disconnected: ${socket.id}`);
+    console.log(`[Socket.IO] Client disconnected: ${socket.id}`);
   });
 });
 
-// Wire GameState Events to Socket.IO Broadcasts
-gameState.on('state_updated', (snapshot) => {
-  io.emit('state_updated', snapshot);
-});
+// Wire GameState Events → Socket.IO Broadcasts
+const gameEvents = [
+  'state_updated', 'players_updated', 'settings_updated',
+  'timer_started', 'timer_tick', 'timer_stopped', 'timer_paused', 'timer_resumed', 'timer_extended',
+  'roulette_spin_started', 'player_selected_turn', 'target_selected',
+  'target_immune_blocked', 'target_timeout_action',
+  'player_saved', 'player_eliminated', 'player_rejoined', 'player_helped', 'player_shield_activated',
+  'round_advanced', 'final_round_started', 'final_round_score_updated',
+  'winner_declared', 'winner_challenge_started', 'challenge_ended',
+  'game_reset', 'activity_log'
+];
 
-gameState.on('players_updated', (players) => {
-  io.emit('players_updated', players);
-});
-
-gameState.on('settings_updated', (settings) => {
-  io.emit('settings_updated', settings);
-});
-
-gameState.on('timer_started', (timer) => {
-  io.emit('timer_started', timer);
-});
-
-gameState.on('timer_tick', (tickData) => {
-  io.emit('timer_tick', tickData);
-});
-
-gameState.on('timer_stopped', () => {
-  io.emit('timer_stopped');
-});
-
-gameState.on('timer_paused', (timer) => {
-  io.emit('timer_paused', timer);
-});
-
-gameState.on('timer_resumed', (timer) => {
-  io.emit('timer_resumed', timer);
-});
-
-gameState.on('timer_extended', (timer) => {
-  io.emit('timer_extended', timer);
-});
-
-gameState.on('roulette_spin_started', (result) => {
-  io.emit('roulette_spin_started', result);
-});
-
-gameState.on('player_selected_turn', (data) => {
-  io.emit('player_selected_turn', data);
-});
-
-gameState.on('target_selected', (data) => {
-  io.emit('target_selected', data);
-});
-
-gameState.on('target_immune_blocked', (data) => {
-  io.emit('target_immune_blocked', data);
-});
-
-gameState.on('target_timeout_action', (data) => {
-  io.emit('target_timeout_action', data);
-});
-
-gameState.on('player_saved', (data) => {
-  io.emit('player_saved', data);
-});
-
-gameState.on('player_eliminated', (data) => {
-  io.emit('player_eliminated', data);
-});
-
-gameState.on('player_rejoined', (data) => {
-  io.emit('player_rejoined', data);
-});
-
-gameState.on('player_helped', (data) => {
-  io.emit('player_helped', data);
-});
-
-gameState.on('player_shield_activated', (data) => {
-  io.emit('player_shield_activated', data);
-});
-
-gameState.on('round_advanced', (data) => {
-  io.emit('round_advanced', data);
-});
-
-gameState.on('final_round_started', (data) => {
-  io.emit('final_round_started', data);
-});
-
-gameState.on('final_round_score_updated', (data) => {
-  io.emit('final_round_score_updated', data);
-});
-
-gameState.on('winner_declared', (data) => {
-  io.emit('winner_declared', data);
-});
-
-gameState.on('winner_challenge_started', (data) => {
-  io.emit('winner_challenge_started', data);
-});
-
-gameState.on('challenge_ended', (data) => {
-  io.emit('challenge_ended', data);
-});
-
-gameState.on('game_reset', () => {
-  io.emit('game_reset');
-});
-
-gameState.on('activity_log', (logEntry) => {
-  io.emit('activity_log', logEntry);
+gameEvents.forEach(event => {
+  gameState.on(event, (data) => io.emit(event, data));
 });
 
 // Wire TikTok Connector Events
-tiktokConnector.on('status_change', (status) => {
-  io.emit('tiktok_status', status);
-});
+tiktokConnector.on('status_change', (status) => io.emit('tiktok_status', status));
+tiktokConnector.on('room_info', (info) => io.emit('tiktok_room_info', info));
+tiktokConnector.on('chat', (comment) => io.emit('tiktok_chat', comment));
+tiktokConnector.on('gift', (gift) => io.emit('tiktok_gift', gift));
 
-tiktokConnector.on('room_info', (info) => {
-  io.emit('tiktok_room_info', info);
-});
-
-tiktokConnector.on('chat', (comment) => {
-  io.emit('tiktok_chat', comment);
-});
-
-tiktokConnector.on('gift', (gift) => {
-  io.emit('tiktok_gift', gift);
-});
-
-// Start listening
-server.listen(config.PORT, () => {
-  console.log('========================================================');
-  console.log(`🎡 TikTok Live Roulette Server is RUNNING on port ${config.PORT}`);
-  console.log(`📺 Overlay Screen (البث):   http://localhost:${config.PORT}/overlay`);
-  console.log(`🎛️ Admin Dashboard (المدير): http://localhost:${config.PORT}/admin`);
-  console.log(`🔗 TikFinity Webhook:       http://localhost:${config.PORT}/api/tikfinity/webhook`);
-  console.log('========================================================');
+// Start server
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, '0.0.0.0', () => {
+  console.log('═══════════════════════════════════════════════════════════');
+  console.log(`🎡  TikTok Live Roulette — Backend v2.0 running on port ${PORT}`);
+  console.log(`📺  Overlay : http://localhost:${PORT}/`);
+  console.log(`🎛️  Admin   : http://localhost:${PORT}/admin`);
+  console.log(`🔗  TikFinity Webhook: http://localhost:${PORT}/api/tikfinity/webhook`);
+  console.log(`🌐  Frontend URL env: ${process.env.FRONTEND_URL || '(not set - all origins allowed in dev)'}`);
+  console.log('═══════════════════════════════════════════════════════════');
 });

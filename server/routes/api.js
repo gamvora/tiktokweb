@@ -5,6 +5,11 @@ const config = require('../config');
 function createApiRouter(gameState, tiktokConnector) {
   const router = express.Router();
 
+  // Health check
+  router.get('/health', (req, res) => {
+    res.json({ ok: true, time: new Date().toISOString(), version: '2.0' });
+  });
+
   // GET State snapshot
   router.get('/state', (req, res) => {
     res.json({
@@ -14,7 +19,7 @@ function createApiRouter(gameState, tiktokConnector) {
     });
   });
 
-  // GET Gift catalog (صور ومعلومات الهدايا)
+  // GET Gift catalog
   router.get('/gifts/catalog', (req, res) => {
     res.json({ gifts: config.giftCatalog || [] });
   });
@@ -40,13 +45,11 @@ function createApiRouter(gameState, tiktokConnector) {
   // Roulette Control: Start
   router.post('/control/roulette/start', (req, res) => {
     const result = gameState.startRoulette();
-    if (!result.success) {
-      return res.status(400).json(result);
-    }
+    if (!result.success) return res.status(400).json(result);
     res.json(result);
   });
 
-  // Roulette Control: Land
+  // Roulette Control: Land (called after spin animation completes)
   router.post('/control/roulette/land', (req, res) => {
     gameState.landRoulette();
     res.json({ success: true, chosenPlayer: gameState.chosenPlayer });
@@ -84,7 +87,7 @@ function createApiRouter(gameState, tiktokConnector) {
   router.post('/control/timer/extend', (req, res) => {
     const seconds = parseInt(req.body.seconds || 10, 10);
     gameState.extendTimer(seconds);
-    res.json({ success: true, timer: gameState.timer });
+    res.json({ success: true });
   });
 
   // Reset Game
@@ -93,9 +96,9 @@ function createApiRouter(gameState, tiktokConnector) {
     res.json({ success: true });
   });
 
-  // -------------------------------------------------------------
+  // ─────────────────────────────────────────────────────────
   // Player Management
-  // -------------------------------------------------------------
+  // ─────────────────────────────────────────────────────────
 
   router.post('/players/add', (req, res) => {
     const { nickname, uniqueId, profilePictureUrl, playerNumber } = req.body;
@@ -127,7 +130,6 @@ function createApiRouter(gameState, tiktokConnector) {
   router.post('/players/:id/revive', (req, res) => {
     const player = gameState.getPlayerById(req.params.id);
     if (!player) return res.status(404).json({ success: false, reason: 'اللاعب غير موجود' });
-
     player.status = 'active';
     player.rejoinedAt = new Date().toISOString();
     gameState.persist();
@@ -143,18 +145,16 @@ function createApiRouter(gameState, tiktokConnector) {
     res.json(result);
   });
 
-  // -------------------------------------------------------------
-  // TikTok Connection (3 Modes)
-  // -------------------------------------------------------------
+  // ─────────────────────────────────────────────────────────
+  // TikTok Connection Modes
+  // ─────────────────────────────────────────────────────────
 
-  // Mode 1: Direct TikTok connection (needs EulerStream API key)
+  // Mode 1: Direct TikTok Live
   router.post('/tiktok/connect', async (req, res) => {
     const { username, apiKey } = req.body;
     try {
       gameState.settings.tiktokUsername = username;
-      if (apiKey) {
-        gameState.settings.eulerApiKey = apiKey;
-      }
+      if (apiKey) gameState.settings.eulerApiKey = apiKey;
       gameState.persist();
       const status = await tiktokConnector.connect(username, apiKey || gameState.settings.eulerApiKey);
       res.json({ success: true, status });
@@ -163,14 +163,14 @@ function createApiRouter(gameState, tiktokConnector) {
     }
   });
 
-  // Mode 2: TikFinity mode
+  // Mode 2: TikFinity webhook mode
   router.post('/tiktok/tikfinity-mode', (req, res) => {
     const { username } = req.body;
     const status = tiktokConnector.connectViaTikFinity(username || '');
     res.json({ success: true, status });
   });
 
-  // Mode 3: Simulator mode
+  // Mode 3: Simulator
   router.post('/tiktok/simulator-mode', (req, res) => {
     const status = tiktokConnector.connectSimulator();
     res.json({ success: true, status });
@@ -179,9 +179,7 @@ function createApiRouter(gameState, tiktokConnector) {
   // Set EulerStream API Key
   router.post('/tiktok/set-api-key', (req, res) => {
     const { apiKey } = req.body;
-    if (!apiKey) {
-      return res.json({ success: false, error: 'يرجى إدخال API Key' });
-    }
+    if (!apiKey) return res.json({ success: false, error: 'يرجى إدخال API Key' });
     tiktokConnector.setEulerApiKey(apiKey);
     gameState.settings.eulerApiKey = apiKey;
     gameState.persist();
@@ -197,9 +195,9 @@ function createApiRouter(gameState, tiktokConnector) {
     res.json(tiktokConnector.getStatus());
   });
 
-  // -------------------------------------------------------------
-  // Simulation Toolbar (لاختبار جميع السيناريوهات بسهولة!)
-  // -------------------------------------------------------------
+  // ─────────────────────────────────────────────────────────
+  // Simulation Toolbar
+  // ─────────────────────────────────────────────────────────
 
   router.post('/simulate/join', (req, res) => {
     const { uniqueId, nickname, avatar } = req.body;
@@ -243,9 +241,9 @@ function createApiRouter(gameState, tiktokConnector) {
     res.json({ success: true, giftEvent });
   });
 
-  // -------------------------------------------------------------
+  // ─────────────────────────────────────────────────────────
   // Logs
-  // -------------------------------------------------------------
+  // ─────────────────────────────────────────────────────────
 
   router.get('/logs', (req, res) => {
     const limit = parseInt(req.query.limit || 100, 10);

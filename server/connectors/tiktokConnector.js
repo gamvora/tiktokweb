@@ -22,13 +22,9 @@ class TikTokConnector extends EventEmitter {
     this.gameState = gameState;
     this.connection = null;
     this.currentUsername = '';
-    this.status = 'disconnected'; // 'disconnected' | 'connecting' | 'connected' | 'error'
+    this.status = 'disconnected';
     this.connectionMode = 'none'; // 'direct' | 'tikfinity' | 'simulator'
-    this.roomInfo = {
-      roomId: null,
-      viewerCount: 0,
-      title: ''
-    };
+    this.roomInfo = { roomId: null, viewerCount: 0, title: '' };
     this.lastError = null;
   }
 
@@ -49,15 +45,18 @@ class TikTokConnector extends EventEmitter {
     }
   }
 
-  async connect(username) {
+  // Also aliased as setEulerApiKey for API route compat
+  setEulerApiKey(key) {
+    this.setApiKey(key);
+  }
+
+  async connect(username, apiKey) {
     if (!username || typeof username !== 'string') {
       throw new Error('يرجى إدخال اسم مستخدم تيك توك صحيح');
     }
 
     const cleanUsername = username.replace(/^@/, '').trim();
-    if (!cleanUsername) {
-      throw new Error('اسم المستخدم فارغ');
-    }
+    if (!cleanUsername) throw new Error('اسم المستخدم فارغ');
 
     // If already connected with the same username
     if (this.connection && this.currentUsername === cleanUsername && this.status === 'connected') {
@@ -65,6 +64,8 @@ class TikTokConnector extends EventEmitter {
     }
 
     await this.disconnect();
+
+    if (apiKey) this.setApiKey(apiKey);
 
     this.currentUsername = cleanUsername;
     this.status = 'connecting';
@@ -74,12 +75,11 @@ class TikTokConnector extends EventEmitter {
 
     if (!TikTokLiveConnection) {
       this.status = 'error';
-      this.lastError = 'محرك الاتصال بتيك توك غير متوفر.';
+      this.lastError = 'محرك الاتصال بتيك توك غير متوفر على هذا الخادم.';
       this.emit('status_change', this.getStatus());
       throw new Error(this.lastError);
     }
 
-    // Auto-retry up to 3 times
     let lastErr = null;
     const maxRetries = 3;
 
@@ -89,7 +89,6 @@ class TikTokConnector extends EventEmitter {
           SignConfig.basePath = 'https://api.eulerstream.com';
         }
 
-        // NOTE: enableExtendedGiftInfo must be false for the free tier (avoids EulerStream Business Plan error)
         this.connection = new TikTokLiveConnection(cleanUsername, {
           processInitialData: false,
           enableExtendedGiftInfo: false,
@@ -107,7 +106,7 @@ class TikTokConnector extends EventEmitter {
         this.roomInfo = {
           roomId: rId,
           viewerCount: state?.roomInfo?.data?.user_count || 0,
-          title: state?.roomInfo?.data?.title || ''
+          title: state?.roomInfo?.data?.title || `بث @${cleanUsername}`
         };
 
         this.gameState.logActivity('TIKTOK_CONNECTED', `✅ تم الاتصال بنجاح ببث تيك توك @${cleanUsername} (غرفة: ${rId})`);
@@ -117,12 +116,11 @@ class TikTokConnector extends EventEmitter {
         lastErr = err;
         console.warn(`[TikTokConnector] Attempt ${attempt} failed: ${err.message}`);
         if (attempt < maxRetries) {
-          await new Promise((r) => setTimeout(r, 1000));
+          await new Promise((r) => setTimeout(r, 1200));
         }
       }
     }
 
-    // If all retries failed
     this.status = 'error';
     this.connectionMode = 'none';
     let friendlyMsg = lastErr?.message || 'فشل الاتصال ببث تيك توك';
@@ -130,6 +128,8 @@ class TikTokConnector extends EventEmitter {
 
     if (lower.includes('offline') || lower.includes('not live') || lower.includes('ended') || lower.includes('not found')) {
       friendlyMsg = `حساب @${cleanUsername} غير متواجد في بث مباشر حالياً. افتح البث المباشر أولاً ثم اضغط اتصال!`;
+    } else if (lower.includes('sign') || lower.includes('eulerstream') || lower.includes('api key') || lower.includes('unauthorized')) {
+      friendlyMsg = `خطأ في مفتاح API. يمكنك استخدام وضع TikFinity بدلاً من الربط المباشر.`;
     }
 
     this.lastError = friendlyMsg;
@@ -138,11 +138,33 @@ class TikTokConnector extends EventEmitter {
     throw new Error(this.lastError);
   }
 
+  // TikFinity mode: marks as "connected via webhook" - events arrive via HTTP webhook
+  connectViaTikFinity(username) {
+    this.currentUsername = username || 'tikfinity';
+    this.status = 'connected';
+    this.connectionMode = 'tikfinity';
+    this.roomInfo = { roomId: 'tikfinity', viewerCount: 0, title: `ربط TikFinity لـ @${username}` };
+    this.lastError = null;
+    this.gameState.logActivity('TIKFINITY_CONNECTED', `✅ وضع TikFinity نشط - في انتظار أحداث الـ Webhook من @${username}`);
+    this.emit('status_change', this.getStatus());
+    return this.getStatus();
+  }
+
+  // Simulator mode
+  connectSimulator() {
+    this.currentUsername = 'simulator';
+    this.status = 'connected';
+    this.connectionMode = 'simulator';
+    this.roomInfo = { roomId: 'sim', viewerCount: 999, title: 'وضع المحاكي التجريبي' };
+    this.lastError = null;
+    this.gameState.logActivity('SIMULATOR_CONNECTED', '✅ وضع المحاكي التجريبي نشط');
+    this.emit('status_change', this.getStatus());
+    return this.getStatus();
+  }
+
   async disconnect() {
     if (this.connection) {
-      try {
-        await this.connection.disconnect();
-      } catch (e) {}
+      try { await this.connection.disconnect(); } catch (e) {}
       this.connection = null;
     }
     const wasConnected = this.status === 'connected';
@@ -158,7 +180,6 @@ class TikTokConnector extends EventEmitter {
   setupListeners() {
     if (!this.connection) return;
 
-    // Chat comments
     this.connection.on('chat', (data) => {
       try {
         const u = data.user || {};
@@ -169,9 +190,9 @@ class TikTokConnector extends EventEmitter {
 
         const commentData = {
           userId: u.id || data.userId || uniqueId,
-          uniqueId: uniqueId,
-          nickname: nickname,
-          commentText: commentText,
+          uniqueId,
+          nickname,
+          commentText,
           profilePictureUrl: avatar
         };
 
@@ -182,14 +203,11 @@ class TikTokConnector extends EventEmitter {
       }
     });
 
-    // Gift Events
     this.connection.on('gift', (data) => {
       try {
         const isCombo = data.giftType === 1 || data.gift?.type === 1;
         const repeatEnd = data.repeatEnd !== undefined ? data.repeatEnd : true;
-        if (isCombo && !repeatEnd) {
-          return;
-        }
+        if (isCombo && !repeatEnd) return;
 
         const u = data.user || {};
         const uniqueId = u.displayId || u.uniqueId || data.uniqueId || 'user_' + (u.id || 'anon');
@@ -203,13 +221,13 @@ class TikTokConnector extends EventEmitter {
 
         const giftEvent = {
           userId: u.id || data.userId || uniqueId,
-          uniqueId: uniqueId,
-          nickname: nickname,
+          uniqueId,
+          nickname,
           profilePictureUrl: avatar,
           giftId: data.giftId || g.id,
-          giftName: giftName,
-          diamonds: diamonds,
-          repeatCount: repeatCount,
+          giftName,
+          diamonds,
+          repeatCount,
           eventId: `gift_${data.common?.msgId || data.msgId || Date.now()}_${uniqueId}`
         };
 
@@ -220,7 +238,6 @@ class TikTokConnector extends EventEmitter {
       }
     });
 
-    // Room User / Viewer count update
     this.connection.on('roomUser', (data) => {
       try {
         const count = data.viewerCount ?? data.total ?? data.userCount;
@@ -231,7 +248,6 @@ class TikTokConnector extends EventEmitter {
       } catch (e) {}
     });
 
-    // Disconnected
     this.connection.on('disconnected', () => {
       this.status = 'disconnected';
       this.connectionMode = 'none';
@@ -239,7 +255,6 @@ class TikTokConnector extends EventEmitter {
       this.emit('status_change', this.getStatus());
     });
 
-    // Stream ended
     this.connection.on('streamEnd', () => {
       this.status = 'disconnected';
       this.connectionMode = 'none';
@@ -252,11 +267,8 @@ class TikTokConnector extends EventEmitter {
     const totalDiamonds = (giftEvent.diamonds || 1) * (giftEvent.repeatCount || 1);
     const gifts = this.gameState.settings.gifts;
 
-    this.gameState.logActivity('GIFT_RECEIVED', `🎁 ${giftEvent.nickname} أرسل [${giftEvent.giftName}] (${totalDiamonds} عملة)`, {
-      gift: giftEvent
-    });
+    this.gameState.logActivity('GIFT_RECEIVED', `🎁 ${giftEvent.nickname} أرسل [${giftEvent.giftName}] (${totalDiamonds} عملة)`, { gift: giftEvent });
 
-    // 1. If currently in DEFENDING state, check if this is the target defending themselves
     if (this.gameState.state === 'DEFENDING') {
       const handled = this.gameState.handleDefenseGift({
         userId: giftEvent.userId,
@@ -269,7 +281,6 @@ class TikTokConnector extends EventEmitter {
       if (handled) return;
     }
 
-    // 2. If in FINAL_ROUND state
     if (this.gameState.state === 'FINAL_ROUND') {
       const handled = this.gameState.handleFinalRoundGift({
         userId: giftEvent.userId,
@@ -280,7 +291,6 @@ class TikTokConnector extends EventEmitter {
       if (handled) return;
     }
 
-    // 3. Rejoin check: if sender is eliminated and sent rejoin gift or equivalent coins
     const player = this.gameState.getPlayerById(giftEvent.userId || giftEvent.uniqueId);
     if (player && player.status === 'eliminated') {
       if (totalDiamonds >= (gifts.rejoin.minCoins || 5)) {
@@ -296,8 +306,7 @@ class TikTokConnector extends EventEmitter {
       }
     }
 
-    // 4. Help / Rescue check: if coins match help gift
-    if (totalDiamonds >= (gifts.help.minCoins || 16)) {
+    if (totalDiamonds >= (gifts.help?.minCoins || 16)) {
       this.gameState.handleHelp({
         helperUserId: giftEvent.userId,
         helperName: giftEvent.nickname,
@@ -307,8 +316,7 @@ class TikTokConnector extends EventEmitter {
       return;
     }
 
-    // 5. Shield check: if coins match shield gift
-    if (totalDiamonds >= (gifts.shield.minCoins || 30)) {
+    if (totalDiamonds >= (gifts.shield?.minCoins || 30)) {
       this.gameState.handleShieldGift({
         userId: giftEvent.userId,
         uniqueId: giftEvent.uniqueId,
@@ -318,9 +326,8 @@ class TikTokConnector extends EventEmitter {
       return;
     }
 
-    // 6. Winner Challenge check: if in FINISHED state with a winner and someone sends challenge gift
     if (this.gameState.state === 'FINISHED' && this.gameState.winner) {
-      if (totalDiamonds >= (gifts.winnerChallenge.minCoins || 100)) {
+      if (totalDiamonds >= (gifts.winnerChallenge?.minCoins || 100)) {
         const challenger = player || {
           id: giftEvent.userId,
           nickname: giftEvent.nickname,
