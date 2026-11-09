@@ -543,18 +543,39 @@ document.addEventListener('DOMContentLoaded', () => {
   const adminWheelShowNames = document.getElementById('adminWheelShowNames');
   const btnAdminApplyWheel = document.getElementById('btnAdminApplyWheel');
 
-  let adminGiftCatalog = [];
+  let adminGiftCatalog = [
+    { id: 'rose', nameAr: 'وردة', emoji: '🌹', coins: 1, image: 'assets/gifts/rose.png' },
+    { id: 'heart', nameAr: 'قلب الحب', emoji: '💖', coins: 49, image: 'assets/gifts/heart.png' },
+    { id: 'finger_heart', nameAr: 'قلب بالأصابع', emoji: '🫰', coins: 5, image: 'assets/gifts/finger_heart.png' },
+    { id: 'hand_heart', nameAr: 'قلب باليدين', emoji: '💗', coins: 100, image: 'assets/gifts/hand_heart.png' },
+    { id: 'sunglasses', nameAr: 'نظارات شمسية', emoji: '🕶️', coins: 199, image: 'assets/gifts/sunglasses.png' },
+    { id: 'cap', nameAr: 'كاب تيك توك', emoji: '🧢', coins: 99, image: 'assets/gifts/cap.png' },
+    { id: 'perfume', nameAr: 'عطر فاخر', emoji: '🧴', coins: 20, image: 'assets/gifts/perfume.png' },
+    { id: 'car', nameAr: 'سيارة رياضية', emoji: '🏎️', coins: 10000, image: 'assets/gifts/car.png' },
+    { id: 'lion', nameAr: 'أسد تيك توك', emoji: '🦁', coins: 29999, image: 'assets/gifts/lion.png' },
+    { id: 'crown', nameAr: 'تاج ذهبي', emoji: '👑', coins: 1000, image: 'assets/gifts/crown.png' },
+    { id: 'rocket', nameAr: 'طائرة نفاثة / صاروخ', emoji: '🚀', coins: 4888, image: 'assets/gifts/rocket.png' },
+    { id: 'galaxy', nameAr: 'مجرة كونية', emoji: '🌌', coins: 10000, image: 'assets/gifts/galaxy.png' },
+    { id: 'trophy', nameAr: 'كأس البطولة', emoji: '🏆', coins: 7000, image: 'assets/gifts/trophy.png' },
+    { id: 'pearl', nameAr: 'لؤلؤة البحر', emoji: '🦪', coins: 800, image: 'assets/gifts/pearl.png' },
+    { id: 'gold_mine', nameAr: 'كنز الذهب', emoji: '🪙', coins: 1000, image: 'assets/gifts/gold_mine.png' },
+    { id: 'ferris_wheel', nameAr: 'عجلة الملاهي', emoji: '🎡', coins: 3000, image: 'assets/gifts/ferris_wheel.png' },
+    { id: 'motorcycle', nameAr: 'دراجة نارية', emoji: '🏍️', coins: 2988, image: 'assets/gifts/motorcycle.png' },
+    { id: 'speedboat', nameAr: 'يخت سريع', emoji: '🚤', coins: 1888, image: 'assets/gifts/speedboat.png' },
+    { id: 'confetti', nameAr: 'احتفال ملون', emoji: '🎉', coins: 100, image: 'assets/gifts/confetti.png' },
+    { id: 'tiktok', nameAr: 'شعار تيك توك', emoji: '🎵', coins: 1, image: 'assets/gifts/tiktok.png' }
+  ];
 
   fetch('/api/gifts/catalog')
     .then(r => r.json())
     .then(d => {
-      adminGiftCatalog = d.gifts || [];
+      if (d.gifts && d.gifts.length > 0) adminGiftCatalog = d.gifts;
       renderAdminGiftConfig();
     })
     .catch(() => renderAdminGiftConfig());
 
   function getGiftInfo(idOrName) {
-    if (!idOrName) return adminGiftCatalog[0] || { id: 'rose', nameAr: 'وردة', emoji: '🌹', coins: 1, image: '/assets/gifts/rose.png' };
+    if (!idOrName) return adminGiftCatalog[0];
     const match = adminGiftCatalog.find(g =>
       g.id === idOrName ||
       g.nameAr.toLowerCase() === String(idOrName).toLowerCase()
@@ -564,7 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
       nameAr: idOrName,
       emoji: '🎁',
       coins: 1,
-      image: `/assets/gifts/${idOrName}.png`
+      image: `assets/gifts/${idOrName}.png`
     };
   }
 

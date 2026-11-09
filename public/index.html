@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🎡 روليت تيك توك لايف - شاشة العرض والبث المباشر</title>
-  <link rel="stylesheet" href="/css/overlay.css">
+  <link rel="stylesheet" href="css/overlay.css">
 </head>
 <body>
   <div class="broadcast-wrapper">
@@ -110,7 +110,7 @@
           <div class="legend-items">
             <!-- 1. Defense -->
             <div class="legend-item" id="legendDefense">
-              <img id="legendDefImg" class="legend-gift-img" src="/assets/gifts/rose.png" alt="">
+              <img id="legendDefImg" class="legend-gift-img" src="assets/gifts/rose.png" alt="">
               <div class="legend-info">
                 <div class="legend-title">🛡️ الدفاع عن النفس</div>
                 <div id="legendDefText" class="legend-desc">وردة (1 عملة) لإلغاء الإقصاء</div>
@@ -119,7 +119,7 @@
 
             <!-- 2. Shield -->
             <div class="legend-item" id="legendShield">
-              <img id="legendShieldImg" class="legend-gift-img" src="/assets/gifts/sunglasses.png" alt="">
+              <img id="legendShieldImg" class="legend-gift-img" src="assets/gifts/sunglasses.png" alt="">
               <div class="legend-info">
                 <div class="legend-title">🕶️ منح درع الحصانة</div>
                 <div id="legendShieldText" class="legend-desc">نظارات (30 عملة) حماية من الاستهداف</div>
@@ -128,7 +128,7 @@
 
             <!-- 3. Rejoin -->
             <div class="legend-item" id="legendRejoin">
-              <img id="legendRejoinImg" class="legend-gift-img" src="/assets/gifts/heart.png" alt="">
+              <img id="legendRejoinImg" class="legend-gift-img" src="assets/gifts/heart.png" alt="">
               <div class="legend-info">
                 <div class="legend-title">🔄 الرجوع بعد الإقصاء</div>
                 <div id="legendRejoinText" class="legend-desc">قلب الحب (5 عملات) للعودة للروليت</div>
@@ -137,7 +137,7 @@
 
             <!-- 4. Final / Win -->
             <div class="legend-item" id="legendFinal">
-              <img id="legendFinalImg" class="legend-gift-img" src="/assets/gifts/rocket.png" alt="">
+              <img id="legendFinalImg" class="legend-gift-img" src="assets/gifts/rocket.png" alt="">
               <div class="legend-info">
                 <div class="legend-title">🚀 حسم الجولة والفوز</div>
                 <div id="legendFinalText" class="legend-desc">صاروخ (100 عملة) حسم النتيجة فوراً</div>
@@ -280,7 +280,7 @@
 
         <!-- How to Rejoin info with Real Gift Photo -->
         <div class="elim-rejoin-notice" id="elimRejoinNotice">
-          <img id="elimRejoinImg" class="elim-rejoin-img" src="/assets/gifts/heart.png" alt="">
+          <img id="elimRejoinImg" class="elim-rejoin-img" src="assets/gifts/heart.png" alt="">
           <div class="elim-rejoin-text">
             <div class="elim-rejoin-title">🔄 هل تريد العودة إلى اللعبة الآن؟</div>
             <div id="elimRejoinDetail" class="elim-rejoin-detail">
@@ -582,9 +582,15 @@
   </div>
 
   <!-- Scripts -->
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/audio.js"></script>
-  <script src="/js/roulette.js"></script>
-  <script src="/js/overlay.js"></script>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script>
+    // Fallback if CDN fails or local socket.io
+    if (typeof io === 'undefined') {
+      document.write('<script src="/socket.io/socket.io.js"><\/script>');
+    }
+  </script>
+  <script src="js/audio.js"></script>
+  <script src="js/roulette.js"></script>
+  <script src="js/overlay.js"></script>
 </body>
 </html>

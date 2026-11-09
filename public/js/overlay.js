@@ -156,26 +156,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Real Official TikTok Live Gift Catalog
   let giftCatalog = [
-    { id: 'rose', nameAr: 'وردة', emoji: '🌹', coins: 1, image: '/assets/gifts/rose.png' },
-    { id: 'heart', nameAr: 'قلب الحب', emoji: '💖', coins: 49, image: '/assets/gifts/heart.png' },
-    { id: 'finger_heart', nameAr: 'قلب بالأصابع', emoji: '🫰', coins: 5, image: '/assets/gifts/finger_heart.png' },
-    { id: 'hand_heart', nameAr: 'قلب باليدين', emoji: '💗', coins: 100, image: '/assets/gifts/hand_heart.png' },
-    { id: 'sunglasses', nameAr: 'نظارات شمسية', emoji: '🕶️', coins: 199, image: '/assets/gifts/sunglasses.png' },
-    { id: 'cap', nameAr: 'كاب تيك توك', emoji: '🧢', coins: 99, image: '/assets/gifts/cap.png' },
-    { id: 'perfume', nameAr: 'عطر فاخر', emoji: '🧴', coins: 20, image: '/assets/gifts/perfume.png' },
-    { id: 'car', nameAr: 'سيارة رياضية', emoji: '🏎️', coins: 10000, image: '/assets/gifts/car.png' },
-    { id: 'lion', nameAr: 'أسد تيك توك', emoji: '🦁', coins: 29999, image: '/assets/gifts/lion.png' },
-    { id: 'crown', nameAr: 'تاج ذهبي', emoji: '👑', coins: 1000, image: '/assets/gifts/crown.png' },
-    { id: 'rocket', nameAr: 'طائرة نفاثة / صاروخ', emoji: '🚀', coins: 4888, image: '/assets/gifts/rocket.png' },
-    { id: 'galaxy', nameAr: 'مجرة كونية', emoji: '🌌', coins: 10000, image: '/assets/gifts/galaxy.png' },
-    { id: 'trophy', nameAr: 'كأس البطولة', emoji: '🏆', coins: 7000, image: '/assets/gifts/trophy.png' },
-    { id: 'pearl', nameAr: 'لؤلؤة البحر', emoji: '🦪', coins: 800, image: '/assets/gifts/pearl.png' },
-    { id: 'gold_mine', nameAr: 'كنز الذهب', emoji: '🪙', coins: 1000, image: '/assets/gifts/gold_mine.png' },
-    { id: 'ferris_wheel', nameAr: 'عجلة الملاهي', emoji: '🎡', coins: 3000, image: '/assets/gifts/ferris_wheel.png' },
-    { id: 'motorcycle', nameAr: 'دراجة نارية', emoji: '🏍️', coins: 2988, image: '/assets/gifts/motorcycle.png' },
-    { id: 'speedboat', nameAr: 'يخت سريع', emoji: '🚤', coins: 1888, image: '/assets/gifts/speedboat.png' },
-    { id: 'confetti', nameAr: 'احتفال ملون', emoji: '🎉', coins: 100, image: '/assets/gifts/confetti.png' },
-    { id: 'tiktok', nameAr: 'شعار تيك توك', emoji: '🎵', coins: 1, image: '/assets/gifts/tiktok.png' }
+    { id: 'rose', nameAr: 'وردة', emoji: '🌹', coins: 1, image: 'assets/gifts/rose.png' },
+    { id: 'heart', nameAr: 'قلب الحب', emoji: '💖', coins: 49, image: 'assets/gifts/heart.png' },
+    { id: 'finger_heart', nameAr: 'قلب بالأصابع', emoji: '🫰', coins: 5, image: 'assets/gifts/finger_heart.png' },
+    { id: 'hand_heart', nameAr: 'قلب باليدين', emoji: '💗', coins: 100, image: 'assets/gifts/hand_heart.png' },
+    { id: 'sunglasses', nameAr: 'نظارات شمسية', emoji: '🕶️', coins: 199, image: 'assets/gifts/sunglasses.png' },
+    { id: 'cap', nameAr: 'كاب تيك توك', emoji: '🧢', coins: 99, image: 'assets/gifts/cap.png' },
+    { id: 'perfume', nameAr: 'عطر فاخر', emoji: '🧴', coins: 20, image: 'assets/gifts/perfume.png' },
+    { id: 'car', nameAr: 'سيارة رياضية', emoji: '🏎️', coins: 10000, image: 'assets/gifts/car.png' },
+    { id: 'lion', nameAr: 'أسد تيك توك', emoji: '🦁', coins: 29999, image: 'assets/gifts/lion.png' },
+    { id: 'crown', nameAr: 'تاج ذهبي', emoji: '👑', coins: 1000, image: 'assets/gifts/crown.png' },
+    { id: 'rocket', nameAr: 'طائرة نفاثة / صاروخ', emoji: '🚀', coins: 4888, image: 'assets/gifts/rocket.png' },
+    { id: 'galaxy', nameAr: 'مجرة كونية', emoji: '🌌', coins: 10000, image: 'assets/gifts/galaxy.png' },
+    { id: 'trophy', nameAr: 'كأس البطولة', emoji: '🏆', coins: 7000, image: 'assets/gifts/trophy.png' },
+    { id: 'pearl', nameAr: 'لؤلؤة البحر', emoji: '🦪', coins: 800, image: 'assets/gifts/pearl.png' },
+    { id: 'gold_mine', nameAr: 'كنز الذهب', emoji: '🪙', coins: 1000, image: 'assets/gifts/gold_mine.png' },
+    { id: 'ferris_wheel', nameAr: 'عجلة الملاهي', emoji: '🎡', coins: 3000, image: 'assets/gifts/ferris_wheel.png' },
+    { id: 'motorcycle', nameAr: 'دراجة نارية', emoji: '🏍️', coins: 2988, image: 'assets/gifts/motorcycle.png' },
+    { id: 'speedboat', nameAr: 'يخت سريع', emoji: '🚤', coins: 1888, image: 'assets/gifts/speedboat.png' },
+    { id: 'confetti', nameAr: 'احتفال ملون', emoji: '🎉', coins: 100, image: 'assets/gifts/confetti.png' },
+    { id: 'tiktok', nameAr: 'شعار تيك توك', emoji: '🎵', coins: 1, image: 'assets/gifts/tiktok.png' }
   ];
 
   // Fetch gifts catalog from server
@@ -205,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
       nameAr: idOrName,
       emoji: '🎁',
       coins: 1,
-      image: `/assets/gifts/${idOrName}.png`
+      image: `assets/gifts/${idOrName}.png`
     };
   }
 
@@ -273,6 +273,33 @@ document.addEventListener('DOMContentLoaded', () => {
   async function triggerRouletteSpin() {
     try {
       if (window.soundEngine) window.soundEngine.init();
+
+      // If in demo mode (on GitHub Pages or backend disconnected)
+      if (!socket.connected) {
+        const active = allPlayers.filter(p => !p.isEliminated);
+        if (active.length < 2) {
+          alert('يجب أن يكون هناك لاعبان على الأقل نشطان لتدوير العجلة!');
+          return;
+        }
+        const chosen = active[Math.floor(Math.random() * active.length)];
+        const duration = (currentSnapshot?.settings?.wheel?.spinDuration) || 5000;
+        
+        btnMainSpinRoulette.disabled = true;
+        btnMainSpinRoulette.classList.add('disabled-pulse');
+        btnMainSpinRoulette.textContent = '⏳ العجلة تدور الآن...';
+        
+        if (window.soundEngine) window.soundEngine.playSpin();
+        wheel.spinToPlayer(chosen.id, duration, () => {
+          if (window.soundEngine) window.soundEngine.playWin();
+          currentSnapshot.chosenPlayer = chosen;
+          showTurnModal(chosen);
+          setTimeout(() => {
+            hideTurnModal();
+            openTargetSelection(chosen, currentSnapshot?.settings?.eliminationTimeoutSec || 20);
+          }, 3500);
+        });
+        return;
+      }
 
       const res = await fetch('/api/control/roulette/start', { method: 'POST' });
       const data = await res.json();
@@ -453,6 +480,66 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on('activity_log', (entry) => {
     appendDrawerLog(entry);
   });
+
+  // -------------------------------------------------------------
+  // GitHub Pages / Offline Interactive Demo Fallback
+  // -------------------------------------------------------------
+  setTimeout(() => {
+    if (!currentSnapshot) {
+      console.log('🎮 Initializing Interactive Demo Mode for GitHub Pages / Standalone Preview...');
+      const demoSnapshot = {
+        round: 1,
+        state: 'WAITING_JOIN',
+        chosenPlayer: null,
+        targetPlayer: null,
+        winner: null,
+        settings: {
+          joinKeyword: 'تم',
+          isJoinOpen: true,
+          eliminationMode: 'target_select',
+          eliminationTimeoutSec: 20,
+          gifts: {
+            defense: { id: 'rose', name: 'وردة', coins: 1, image: 'assets/gifts/rose.png' },
+            shield: { id: 'sunglasses', name: 'نظارات شمسية', coins: 199, image: 'assets/gifts/sunglasses.png' },
+            rejoin: { id: 'heart', name: 'قلب الحب', coins: 49, image: 'assets/gifts/heart.png' },
+            instantWin: { id: 'rocket', name: 'طائرة نفاثة / صاروخ', coins: 4888, image: 'assets/gifts/rocket.png' }
+          },
+          wheel: {
+            theme: 'neon',
+            spinDuration: 5000,
+            showAvatars: true,
+            showNames: true
+          }
+        }
+      };
+
+      const demoPlayers = [
+        { id: '1', playerNumber: 1, nickname: 'محمد 👑', uniqueId: 'mohammed', profilePictureUrl: 'assets/gifts/lion.png', isEliminated: false, hasShield: false },
+        { id: '2', playerNumber: 2, nickname: 'سارة ✨', uniqueId: 'sara', profilePictureUrl: 'assets/gifts/heart.png', isEliminated: false, hasShield: true },
+        { id: '3', playerNumber: 3, nickname: 'أحمد ⚡', uniqueId: 'ahmed', profilePictureUrl: 'assets/gifts/cap.png', isEliminated: false, hasShield: false },
+        { id: '4', playerNumber: 4, nickname: 'خالد 🚀', uniqueId: 'khaled', profilePictureUrl: 'assets/gifts/rocket.png', isEliminated: false, hasShield: false },
+        { id: '5', playerNumber: 5, nickname: 'مريم 🌸', uniqueId: 'mariam', profilePictureUrl: 'assets/gifts/rose.png', isEliminated: false, hasShield: false },
+        { id: '6', playerNumber: 6, nickname: 'علي 🔥', uniqueId: 'ali', profilePictureUrl: 'assets/gifts/trophy.png', isEliminated: false, hasShield: false },
+        { id: '7', playerNumber: 7, nickname: 'نور 🌟', uniqueId: 'nour', profilePictureUrl: 'assets/gifts/pearl.png', isEliminated: false, hasShield: false },
+        { id: '8', playerNumber: 8, nickname: 'فهد 🏎️', uniqueId: 'fahad', profilePictureUrl: 'assets/gifts/car.png', isEliminated: false, hasShield: false }
+      ];
+
+      currentSnapshot = demoSnapshot;
+      allPlayers = demoPlayers;
+      applyWheelConfigFromSnapshot();
+      renderAll();
+
+      if (tiktokBadgeEl) {
+        tiktokBadgeEl.textContent = '🌐 معاينة GitHub Live';
+        tiktokBadgeEl.style.background = 'linear-gradient(45deg, #00f2fe, #4facfe)';
+      }
+      if (btnMainSpinRoulette) {
+        btnMainSpinRoulette.disabled = false;
+        btnMainSpinRoulette.classList.remove('disabled-pulse');
+        btnMainSpinRoulette.textContent = 'تدوير العجلة 🎡';
+      }
+    }
+  }, 800);
 
   // -------------------------------------------------------------
   // Render Methods - Overlay
@@ -754,10 +841,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('');
   }
 
-  // Click handler to select target (works for admin / testing / host convenience)
+  // Click handler to select target (works for admin / testing / host convenience / demo)
   window.selectTargetPlayer = async (targetNumber) => {
     if (!currentSnapshot?.chosenPlayer) return;
     const chooser = currentSnapshot.chosenPlayer;
+
+    if (!socket.connected) {
+      // Demo mode execution
+      const target = allPlayers.find(p => p.playerNumber === targetNumber);
+      if (target) {
+        closeTargetSelection();
+        target.isEliminated = true;
+        renderAll();
+        showEliminationModal(target, chooser);
+        setTimeout(() => {
+          hideEliminationModal();
+          const remainingActive = allPlayers.filter(p => !p.isEliminated);
+          if (remainingActive.length === 1) {
+            showWinnerModal(remainingActive[0]);
+          } else {
+            if (btnMainSpinRoulette) {
+              btnMainSpinRoulette.disabled = false;
+              btnMainSpinRoulette.classList.remove('disabled-pulse');
+              btnMainSpinRoulette.textContent = 'تدوير العجلة 🎡';
+            }
+          }
+        }, 6000);
+      }
+      return;
+    }
+
     await fetch('/api/simulate/comment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
