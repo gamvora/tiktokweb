@@ -1767,7 +1767,8 @@ body {
   height: 100%;
   white-space: nowrap;
   width: max-content;
-  animation: ticker-scroll 30s linear infinite;
+  direction: ltr;
+  animation: ticker-scroll 25s linear infinite;
   padding: 0 20px;
 }
 .ticker-item {
@@ -1789,7 +1790,7 @@ body {
 .ticker-desc { color: #94a3b8; }
 @keyframes ticker-scroll {
   0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  100% { transform: translateX(-25%); }
 }
 /* RTL: move right-to-left visually; ticker-scroll uses translateX which in RTL still works */
 

@@ -1161,7 +1161,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return `<div class="ticker-item"><img src="${img}" alt=""><span class="ticker-name">${name}</span><span class="ticker-coins">${coins} عملة</span><span class="ticker-desc">${c.label} — ${c.desc}</span></div>`;
     }).join('');
     // duplicate for seamless loop
-    giftTickerTrack.innerHTML = items + items;
+    giftTickerTrack.innerHTML = items + items + items + items;
   }
 
   function updateSpinButtonState() {
