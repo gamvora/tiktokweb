@@ -28,7 +28,7 @@ function createApiRouter(gameState, tiktokConnector) {
   router.post('/settings', (req, res) => {
     const newSettings = req.body || {};
     gameState.updateSettings(newSettings);
-    res.json({ success: true, settings: gameState.settings });
+    res.json({ success: true, settings: gameState.getPublicSettings() });
   });
 
   // Basic Controls
@@ -37,7 +37,7 @@ function createApiRouter(gameState, tiktokConnector) {
     gameState.settings.isJoinOpen = isOpen !== undefined ? !!isOpen : !gameState.settings.isJoinOpen;
     gameState.persist();
     gameState.logActivity('JOIN_TOGGLE', gameState.settings.isJoinOpen ? 'تم فتح باب الانضمام للاعبين' : 'تم إغلاق باب الانضمام');
-    gameState.emit('settings_updated', gameState.settings);
+    gameState.emit('settings_updated', gameState.getPublicSettings());
     gameState.emit('state_updated', gameState.getSnapshot());
     res.json({ success: true, isJoinOpen: gameState.settings.isJoinOpen });
   });
@@ -225,16 +225,17 @@ function createApiRouter(gameState, tiktokConnector) {
   });
 
   router.post('/simulate/gift', (req, res) => {
-    const { uniqueId, giftName, coins, repeatCount } = req.body;
+    const { uniqueId, giftId, giftName, coins, repeatCount } = req.body;
     const player = gameState.getPlayerById(uniqueId);
     const giftEvent = {
       userId: player ? player.userId : 'sim_' + (uniqueId || 'viewer'),
       uniqueId: uniqueId || (player ? player.uniqueId : 'viewer'),
       nickname: player ? player.nickname : uniqueId,
+      giftId: giftId || null,
       giftName: giftName || 'هدية تجريبية',
       diamonds: parseInt(coins || 1, 10),
       repeatCount: parseInt(repeatCount || 1, 10),
-      eventId: `sim_${Date.now()}`
+      eventId: `sim_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     };
 
     tiktokConnector.dispatchGift(giftEvent);

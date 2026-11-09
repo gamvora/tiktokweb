@@ -3,11 +3,8 @@
 // يتصل تلقائياً بالـ backend على Railway أو يعمل في وضع Demo
 // ═══════════════════════════════════════════════════════════════
 
-// ── تحديد عنوان الـ backend ─────────────────────────────────
-const BACKEND_URL = window.BACKEND_URL ||
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? `${window.location.protocol}//${window.location.hostname}:3001`
-    : window.__RAILWAY_URL__ || '');
+// ── تحديد عنوان الـ backend (من js/backend.js المشترك) ─────
+const BACKEND_URL = window.BACKEND_URL || '';
 
 // ── Socket.IO متغيرات عامة ──────────────────────────────────
 let socket = null;
@@ -72,40 +69,72 @@ document.addEventListener('DOMContentLoaded', () => {
   // Helper: API Call مع دعم BACKEND_URL والـ Fallback
   // ─────────────────────────────────────────────────────────────
   async function apiPost(path, body = {}) {
-    if (!socketConnected && !BACKEND_URL) return { success: false, error: 'لا يوجد اتصال بالخادم' };
-    const base = BACKEND_URL || '';
-    const res = await fetch(`${base}/api${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    return res.json();
+    if (!BACKEND_URL) return { success: false, error: 'لا يوجد اتصال بالخادم' };
+    try {
+      const res = await fetch(`${BACKEND_URL}/api${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        let detail = '';
+        try { detail = (await res.json()).error || ''; } catch (e) {}
+        return { success: false, error: detail || `HTTP ${res.status}` };
+      }
+      return await res.json();
+    } catch (err) {
+      console.error('[Admin] apiPost failed:', path, err);
+      return { success: false, error: err.message || 'فشل الاتصال بالخادم' };
+    }
   }
 
   async function apiGet(path) {
     if (!BACKEND_URL) return null;
     try {
       const res = await fetch(`${BACKEND_URL}/api${path}`);
-      return res.json();
+      if (!res.ok) return null;
+      return await res.json();
     } catch (e) { return null; }
   }
 
   async function apiDelete(path) {
     if (!BACKEND_URL) return;
-    await fetch(`${BACKEND_URL}/api${path}`, { method: 'DELETE' });
+    try {
+      await fetch(`${BACKEND_URL}/api${path}`, { method: 'DELETE' });
+    } catch (e) {
+      console.error('[Admin] apiDelete failed:', path, e);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────
   // Webhook URL Setup
   // ─────────────────────────────────────────────────────────────
-  const webhookBase = BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:3001`;
+  const webhookBase = BACKEND_URL || '';
   if (webhookUrlInput) {
-    webhookUrlInput.value = `${webhookBase}/api/tikfinity/webhook`;
+    webhookUrlInput.value = webhookBase
+      ? `${webhookBase}/api/tikfinity/webhook`
+      : '⚠️ أدخل رابط الخادم أولاً';
   }
   if (copyWebhookBtn) {
     copyWebhookBtn.addEventListener('click', () => {
+      if (!webhookBase) { alert('أدخل رابط خادم الباك إند أولاً'); return; }
       navigator.clipboard.writeText(webhookUrlInput.value);
       alert('✅ تم نسخ رابط TikFinity Webhook!');
+    });
+  }
+
+  // ── Backend URL Setting ─────────────────────────────────────
+  const adminBackendUrlInput = document.getElementById('adminBackendUrlInput');
+  const btnSaveBackendUrlAdmin = document.getElementById('btnSaveBackendUrlAdmin');
+  if (adminBackendUrlInput) adminBackendUrlInput.value = BACKEND_URL || '';
+  if (btnSaveBackendUrlAdmin) {
+    btnSaveBackendUrlAdmin.addEventListener('click', () => {
+      const value = (adminBackendUrlInput?.value || '').trim();
+      if (value && !/^https?:\/\//i.test(value)) {
+        alert('اكتب الرابط كاملاً مع https:// مثال: https://your-app.up.railway.app');
+        return;
+      }
+      window.setBackendUrl(value);
     });
   }
 
@@ -175,8 +204,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('state_updated', (snapshot) => {
       stateSnapshot = snapshot;
-      settings = snapshot?.settings || settings;
-      updateStatusSummary();
+      if (snapshot?.settings) settings = snapshot.settings;
+      updateUI();
     });
 
     socket.on('players_updated', (players) => {
@@ -221,11 +250,11 @@ document.addEventListener('DOMContentLoaded', () => {
         timeoutBehavior: 'skip',
         gifts: {
           defense:        { giftName: 'وردة',          giftId: 'rose',       minCoins: 1    },
-          shield:         { giftName: 'نظارات شمسية',  giftId: 'sunglasses', minCoins: 199  },
-          rejoin:         { giftName: 'قلب الحب',       giftId: 'heart',      minCoins: 49   },
-          help:           { giftName: 'كاب تيك توك',   giftId: 'cap',        minCoins: 99   },
-          finalRound:     { giftName: 'صاروخ',          giftId: 'rocket',     minCoins: 4888 },
-          winnerChallenge:{ giftName: 'أسد تيك توك',   giftId: 'lion',       minCoins: 29999}
+          shield:         { giftName: 'نظارات شمسية',  giftId: 'sunglasses', minCoins: 30   },
+          rejoin:         { giftName: 'قلب الحب',       giftId: 'heart',      minCoins: 5    },
+          help:           { giftName: 'كاب تيك توك',   giftId: 'cap',        minCoins: 16   },
+          finalRound:     { giftName: 'طائرة نفاثة / صاروخ', giftId: 'rocket', minCoins: 100 },
+          winnerChallenge:{ giftName: 'تاج ذهبي',      giftId: 'crown',      minCoins: 100  }
         },
         wheelConfig: { theme: 'casino', spinDuration: 6500, showPlayerAvatars: true, showPlayerNames: true }
       }
@@ -265,7 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       tiktokStatusText.innerHTML = `<span style="color:#f59e0b;">⏳ جاري محاولة الاتصال بـ @${username}...</span>`;
 
-      if (socketConnected) {
+      if (BACKEND_URL) {
         try {
           const data = await apiPost('/tiktok/connect', { username });
           if (!data.success) {
@@ -298,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnDisconnectTikTok) {
     btnDisconnectTikTok.addEventListener('click', async () => {
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/tiktok/disconnect');
       }
       const mockStatus = { status: 'disconnected', username: null };
@@ -342,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─────────────────────────────────────────────────────────────
   if (btnStartRoulette) {
     btnStartRoulette.addEventListener('click', async () => {
-      if (socketConnected) {
+      if (BACKEND_URL) {
         const data = await apiPost('/control/roulette/start');
         if (!data.success) alert(data.reason || 'تعذر بدء الروليت');
         return;
@@ -360,7 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnToggleJoin) {
     btnToggleJoin.addEventListener('click', async () => {
-      if (socketConnected) {
+      if (BACKEND_URL) {
         const data = await apiPost('/control/join', {});
         btnToggleJoin.textContent = data.isJoinOpen ? '🔒 إغلاق باب الانضمام' : '🔓 فتح باب الانضمام';
         return;
@@ -377,7 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnNextRound) {
     btnNextRound.addEventListener('click', async () => {
-      if (socketConnected) { await apiPost('/control/round/next'); return; }
+      if (BACKEND_URL) { await apiPost('/control/round/next'); return; }
       if (stateSnapshot) {
         stateSnapshot.roundNumber = (stateSnapshot.roundNumber || 1) + 1;
         stateSnapshot.chosenPlayer = null; stateSnapshot.targetPlayer = null; stateSnapshot.state = 'READY';
@@ -392,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnFinalRound) {
     btnFinalRound.addEventListener('click', async () => {
       if (!confirm('هل تريد بدء مرحلة الحسم النهائي الآن؟')) return;
-      if (socketConnected) { await apiPost('/control/round/final'); return; }
+      if (BACKEND_URL) { await apiPost('/control/round/final'); return; }
       if (stateSnapshot) {
         stateSnapshot.state = 'FINAL_ROUND'; updateStatusSummary(); saveDemoState();
         if (bc) bc.postMessage({ type: 'state_updated', snapshot: stateSnapshot });
@@ -403,7 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnCancelElimination) {
     btnCancelElimination.addEventListener('click', async () => {
-      if (socketConnected) { await apiPost('/control/elimination/cancel'); return; }
+      if (BACKEND_URL) { await apiPost('/control/elimination/cancel'); return; }
       if (stateSnapshot) {
         stateSnapshot.state = 'READY'; stateSnapshot.targetPlayer = null;
         updateStatusSummary(); saveDemoState();
@@ -413,12 +442,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (btnPauseTimer) btnPauseTimer.addEventListener('click', async () => { if (socketConnected) await apiPost('/control/timer/pause'); });
-  if (btnResumeTimer) btnResumeTimer.addEventListener('click', async () => { if (socketConnected) await apiPost('/control/timer/resume'); });
+  if (btnPauseTimer) btnPauseTimer.addEventListener('click', async () => { if (BACKEND_URL) await apiPost('/control/timer/pause'); });
+  if (btnResumeTimer) btnResumeTimer.addEventListener('click', async () => { if (BACKEND_URL) await apiPost('/control/timer/resume'); });
 
   if (btnExtendTimer) {
     btnExtendTimer.addEventListener('click', async () => {
-      if (socketConnected) { await apiPost('/control/timer/extend', { seconds: 15 }); return; }
+      if (BACKEND_URL) { await apiPost('/control/timer/extend', { seconds: 15 }); return; }
       appendLogEntry({ timestamp: new Date().toISOString(), type: 'TIMER_EXTEND', message: '⏳ تمديد المؤقت +15 ثانية (محاكاة)' });
     });
   }
@@ -426,7 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnResetGame) {
     btnResetGame.addEventListener('click', async () => {
       if (!confirm('تحذير: إعادة تعيين اللعبة ومسح جميع اللاعبين؟')) return;
-      if (socketConnected) { await apiPost('/control/game/reset'); return; }
+      if (BACKEND_URL) { await apiPost('/control/game/reset'); return; }
       allPlayers = [];
       if (stateSnapshot) { stateSnapshot.state = 'WAITING_FOR_PLAYERS'; stateSnapshot.roundNumber = 1; stateSnapshot.chosenPlayer = null; stateSnapshot.targetPlayer = null; stateSnapshot.winner = null; }
       updateUI(); saveDemoState();
@@ -454,7 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnMockTenPlayers) {
     btnMockTenPlayers.addEventListener('click', async () => {
-      if (socketConnected) {
+      if (BACKEND_URL) {
         btnMockTenPlayers.disabled = true;
         btnMockTenPlayers.textContent = 'جاري الإضافة... ⏳';
         try {
@@ -498,7 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const u = (simJoinUsername?.value || '').trim().replace(/^@/, '') || `user_${Date.now() % 1000}`;
       const n = (simJoinNickname?.value || '').trim() || u;
 
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/simulate/join', { nickname: n, uniqueId: u, avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${u}` });
         if (simJoinUsername) simJoinUsername.value = '';
         if (simJoinNickname) simJoinNickname.value = '';
@@ -523,7 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const uniqueId = simCommentUser?.value;
       const commentText = (simCommentText?.value || '').trim();
       if (!commentText) return;
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/simulate/comment', { uniqueId, commentText });
         if (simCommentText) simCommentText.value = '';
         return;
@@ -557,16 +586,16 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (giftType === 'rejoin') {
         const elim = allPlayers.filter(p => p.status === 'eliminated');
         if (elim.length > 0) uniqueId = elim[0].uniqueId;
-        giftName = settings?.gifts?.rejoin?.giftName || 'قلب'; coins = settings?.gifts?.rejoin?.minCoins || 49;
+        giftName = settings?.gifts?.rejoin?.giftName || 'قلب'; coins = settings?.gifts?.rejoin?.minCoins || 5;
       } else if (giftType === 'help') {
-        giftName = settings?.gifts?.help?.giftName || 'كاب'; coins = settings?.gifts?.help?.minCoins || 99;
+        giftName = settings?.gifts?.help?.giftName || 'كاب'; coins = settings?.gifts?.help?.minCoins || 16;
       } else if (giftType === 'shield') {
-        giftName = settings?.gifts?.shield?.giftName || 'نظارات'; coins = settings?.gifts?.shield?.minCoins || 199;
+        giftName = settings?.gifts?.shield?.giftName || 'نظارات'; coins = settings?.gifts?.shield?.minCoins || 30;
       } else if (giftType === 'final') {
-        giftName = settings?.gifts?.finalRound?.giftName || 'صاروخ'; coins = settings?.gifts?.finalRound?.minCoins || 4888;
+        giftName = settings?.gifts?.finalRound?.giftName || 'صاروخ'; coins = settings?.gifts?.finalRound?.minCoins || 100;
       }
 
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/simulate/gift', { uniqueId, giftName, coins, repeatCount: 1 });
         return;
       }
@@ -596,16 +625,16 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (giftType === 'rejoin') {
         const elim = allPlayers.filter(p => p.status === 'eliminated');
         if (elim.length > 0) uniqueId = elim[0].uniqueId;
-        giftName = settings?.gifts?.rejoin?.giftName || 'قلب'; coins = settings?.gifts?.rejoin?.minCoins || 49;
+        giftName = settings?.gifts?.rejoin?.giftName || 'قلب'; coins = settings?.gifts?.rejoin?.minCoins || 5;
       } else if (giftType === 'help') {
-        giftName = settings?.gifts?.help?.giftName || 'كاب'; coins = settings?.gifts?.help?.minCoins || 99;
+        giftName = settings?.gifts?.help?.giftName || 'كاب'; coins = settings?.gifts?.help?.minCoins || 16;
       } else if (giftType === 'shield') {
-        giftName = settings?.gifts?.shield?.giftName || 'نظارات'; coins = settings?.gifts?.shield?.minCoins || 199;
+        giftName = settings?.gifts?.shield?.giftName || 'نظارات'; coins = settings?.gifts?.shield?.minCoins || 30;
       } else if (giftType === 'final') {
-        giftName = settings?.gifts?.finalRound?.giftName || 'صاروخ'; coins = settings?.gifts?.finalRound?.minCoins || 4888;
+        giftName = settings?.gifts?.finalRound?.giftName || 'صاروخ'; coins = settings?.gifts?.finalRound?.minCoins || 100;
       }
 
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/simulate/gift', { uniqueId, giftName, coins, repeatCount: 1 });
         return;
       }
@@ -630,7 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDrawerMockTen = document.getElementById('btnDrawerMockTen');
   if (btnDrawerMockTen) {
     btnDrawerMockTen.addEventListener('click', async () => {
-      if (socketConnected) {
+      if (BACKEND_URL) {
         try {
           for (const m of mockNames) {
             await apiPost('/simulate/join', { nickname: m.name, uniqueId: m.user, avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${m.user}` });
@@ -659,7 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const userEl = document.getElementById('simDrawerJoinUser');
       const n = (nickEl?.value || '').trim() || `لاعب_${Date.now() % 100}`;
       const u = (userEl?.value || '').trim().replace(/^@/, '') || `user_${Date.now() % 1000}`;
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/simulate/join', { nickname: n, uniqueId: u, avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${u}` });
         if (nickEl) nickEl.value = ''; if (userEl) userEl.value = '';
         return;
@@ -684,7 +713,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const uniqueId = userEl?.value;
       const commentText = (textEl?.value || '').trim();
       if (!commentText) return;
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/simulate/comment', { uniqueId, commentText });
         if (textEl) textEl.value = '';
         return;
@@ -711,45 +740,45 @@ document.addEventListener('DOMContentLoaded', () => {
   // Drawer Game Controls
   const btnDrawerToggleJoin = document.getElementById('btnDrawerToggleJoin');
   if (btnDrawerToggleJoin) btnDrawerToggleJoin.addEventListener('click', async () => {
-    if (socketConnected) { const d = await apiPost('/control/join', {}); btnDrawerToggleJoin.textContent = d.isJoinOpen ? '🔒 إغلاق الانضمام' : '🔓 فتح الانضمام'; return; }
+    if (BACKEND_URL) { const d = await apiPost('/control/join', {}); btnDrawerToggleJoin.textContent = d.isJoinOpen ? '🔒 إغلاق الانضمام' : '🔓 فتح الانضمام'; return; }
     if (settings) { settings.isJoinOpen = !settings.isJoinOpen; saveDemoState(); if (bc) bc.postMessage({ type: 'settings_updated', settings }); }
   });
 
   const btnDrawerNextRound = document.getElementById('btnDrawerNextRound');
   if (btnDrawerNextRound) btnDrawerNextRound.addEventListener('click', async () => {
-    if (socketConnected) { await apiPost('/control/round/next'); return; }
+    if (BACKEND_URL) { await apiPost('/control/round/next'); return; }
     if (stateSnapshot) { stateSnapshot.roundNumber = (stateSnapshot.roundNumber || 1) + 1; stateSnapshot.state = 'READY'; updateStatusSummary(); saveDemoState(); if (bc) bc.postMessage({ type: 'state_updated', snapshot: stateSnapshot }); }
   });
 
   const btnDrawerFinalRound = document.getElementById('btnDrawerFinalRound');
   if (btnDrawerFinalRound) btnDrawerFinalRound.addEventListener('click', async () => {
     if (!confirm('بدء الحسم النهائي؟')) return;
-    if (socketConnected) { await apiPost('/control/round/final'); return; }
+    if (BACKEND_URL) { await apiPost('/control/round/final'); return; }
     if (stateSnapshot) { stateSnapshot.state = 'FINAL_ROUND'; saveDemoState(); if (bc) bc.postMessage({ type: 'state_updated', snapshot: stateSnapshot }); }
   });
 
   const btnDrawerCancelElim = document.getElementById('btnDrawerCancelElim');
   if (btnDrawerCancelElim) btnDrawerCancelElim.addEventListener('click', async () => {
-    if (socketConnected) { await apiPost('/control/elimination/cancel'); return; }
+    if (BACKEND_URL) { await apiPost('/control/elimination/cancel'); return; }
     if (stateSnapshot) { stateSnapshot.state = 'READY'; stateSnapshot.targetPlayer = null; saveDemoState(); if (bc) bc.postMessage({ type: 'state_updated', snapshot: stateSnapshot }); }
   });
 
   const btnDrawerPauseTimer = document.getElementById('btnDrawerPauseTimer');
-  if (btnDrawerPauseTimer) btnDrawerPauseTimer.addEventListener('click', async () => { if (socketConnected) await apiPost('/control/timer/pause'); });
+  if (btnDrawerPauseTimer) btnDrawerPauseTimer.addEventListener('click', async () => { if (BACKEND_URL) await apiPost('/control/timer/pause'); });
 
   const btnDrawerResumeTimer = document.getElementById('btnDrawerResumeTimer');
-  if (btnDrawerResumeTimer) btnDrawerResumeTimer.addEventListener('click', async () => { if (socketConnected) await apiPost('/control/timer/resume'); });
+  if (btnDrawerResumeTimer) btnDrawerResumeTimer.addEventListener('click', async () => { if (BACKEND_URL) await apiPost('/control/timer/resume'); });
 
   const btnDrawerExtendTimer = document.getElementById('btnDrawerExtendTimer');
   if (btnDrawerExtendTimer) btnDrawerExtendTimer.addEventListener('click', async () => {
-    if (socketConnected) { await apiPost('/control/timer/extend', { seconds: 15 }); return; }
+    if (BACKEND_URL) { await apiPost('/control/timer/extend', { seconds: 15 }); return; }
     appendLogEntry({ timestamp: new Date().toISOString(), type: 'TIMER_EXTEND', message: '⏳ تمديد +15 ثانية (محاكاة)' });
   });
 
   const btnDrawerResetGame = document.getElementById('btnDrawerResetGame');
   if (btnDrawerResetGame) btnDrawerResetGame.addEventListener('click', async () => {
     if (!confirm('إعادة تعيين اللعبة؟')) return;
-    if (socketConnected) { await apiPost('/control/game/reset'); return; }
+    if (BACKEND_URL) { await apiPost('/control/game/reset'); return; }
     allPlayers = []; if (stateSnapshot) { stateSnapshot.state = 'WAITING_FOR_PLAYERS'; stateSnapshot.roundNumber = 1; stateSnapshot.chosenPlayer = null; stateSnapshot.targetPlayer = null; }
     updateUI(); saveDemoState(); if (bc) bc.postMessage({ type: 'players_updated', players: [] });
     alert('🧹 تمت إعادة تعيين اللعبة');
@@ -764,7 +793,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!username) { alert('أدخل اسم الحساب'); return; }
       const statusEl = document.getElementById('drawerTiktokStatusText');
       if (statusEl) statusEl.innerHTML = `<span style="color:#f59e0b;">⏳ جاري الاتصال بـ @${username}...</span>`;
-      if (socketConnected) {
+      if (BACKEND_URL) {
         const data = await apiPost('/tiktok/connect', { username });
         if (!data.success && statusEl) statusEl.innerHTML = `<span style="color:#ef4444;">❌ ${data.error || 'فشل الاتصال'}</span>`;
         return;
@@ -781,7 +810,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDrawerDisconnect = document.getElementById('btnDrawerDisconnect');
   if (btnDrawerDisconnect) {
     btnDrawerDisconnect.addEventListener('click', async () => {
-      if (socketConnected) await apiPost('/tiktok/disconnect');
+      if (BACKEND_URL) await apiPost('/tiktok/disconnect');
       const statusEl = document.getElementById('drawerTiktokStatusText');
       if (statusEl) statusEl.innerHTML = `<span style="color:#9ca3af;">⚪ تم قطع الاتصال</span>`;
     });
@@ -814,14 +843,14 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         gifts: {
           defense:  { ...(settings?.gifts?.defense),  minCoins: parseInt(settingDefMinCoins?.value, 10)   || 1   },
-          rejoin:   { ...(settings?.gifts?.rejoin),   minCoins: parseInt(settingRejoinMinCoins?.value, 10) || 49  },
-          help:     { ...(settings?.gifts?.help),     minCoins: parseInt(settingHelpMinCoins?.value, 10)   || 99  },
-          shield:   { ...(settings?.gifts?.shield),   minCoins: parseInt(settingShieldMinCoins?.value, 10) || 199 },
+          rejoin:   { ...(settings?.gifts?.rejoin),   minCoins: parseInt(settingRejoinMinCoins?.value, 10) || 5  },
+          help:     { ...(settings?.gifts?.help),     minCoins: parseInt(settingHelpMinCoins?.value, 10)   || 16  },
+          shield:   { ...(settings?.gifts?.shield),   minCoins: parseInt(settingShieldMinCoins?.value, 10) || 30 },
           finalRound:      { ...(settings?.gifts?.finalRound)      },
           winnerChallenge: { ...(settings?.gifts?.winnerChallenge) }
         }
       };
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/settings', updated);
       } else {
         settings = { ...settings, ...updated };
@@ -847,7 +876,7 @@ document.addEventListener('DOMContentLoaded', () => {
           defenseDuration: parseInt(document.getElementById('setDrawerDefSec')?.value, 10) || 30
         }
       };
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/settings', updated);
       } else {
         if (settings) { settings = { ...settings, ...updated }; if (stateSnapshot) stateSnapshot.settings = settings; saveDemoState(); if (bc) bc.postMessage({ type: 'settings_updated', settings }); }
@@ -864,9 +893,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (settingTargetDuration)  settingTargetDuration.value  = settings.timers?.targetSelectDuration || 20;
     if (settingDefenseDuration) settingDefenseDuration.value = settings.timers?.defenseDuration || 30;
     if (settingDefMinCoins)     settingDefMinCoins.value     = settings.gifts?.defense?.minCoins  || 1;
-    if (settingRejoinMinCoins)  settingRejoinMinCoins.value  = settings.gifts?.rejoin?.minCoins   || 49;
-    if (settingHelpMinCoins)    settingHelpMinCoins.value    = settings.gifts?.help?.minCoins     || 99;
-    if (settingShieldMinCoins)  settingShieldMinCoins.value  = settings.gifts?.shield?.minCoins   || 199;
+    if (settingRejoinMinCoins)  settingRejoinMinCoins.value  = settings.gifts?.rejoin?.minCoins   || 5;
+    if (settingHelpMinCoins)    settingHelpMinCoins.value    = settings.gifts?.help?.minCoins     || 16;
+    if (settingShieldMinCoins)  settingShieldMinCoins.value  = settings.gifts?.shield?.minCoins   || 30;
 
     // Drawer settings
     const setDrawerJoinKw = document.getElementById('setDrawerJoinKw');
@@ -891,7 +920,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const uniqueId = (addUniqueId?.value || '').trim().replace(/^@/, '');
       const playerNumber = addPlayerNumber?.value ? parseInt(addPlayerNumber.value, 10) : null;
       if (!nickname) return;
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/players/add', { nickname, uniqueId, playerNumber });
       } else {
         const assigned = playerNumber || (allPlayers.length > 0 ? Math.max(...allPlayers.map(p => p.playerNumber || 0)) + 1 : 1);
@@ -917,7 +946,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const nickname = (nickEl?.value || '').trim();
       const uniqueId = (userEl?.value || '').trim().replace(/^@/, '');
       if (!nickname) return;
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/players/add', { nickname, uniqueId });
       } else {
         const assigned = allPlayers.length > 0 ? Math.max(...allPlayers.map(p => p.playerNumber || 0)) + 1 : 1;
@@ -969,20 +998,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.deletePlayer = async (id) => {
     if (!confirm('حذف هذا اللاعب؟')) return;
-    if (socketConnected) { await apiDelete(`/players/${id}`); return; }
+    if (BACKEND_URL) { await apiDelete(`/players/${id}`); return; }
     allPlayers = allPlayers.filter(p => p.id !== id);
     updateUI(); saveDemoState();
     if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers });
   };
 
   window.revivePlayer = async (id) => {
-    if (socketConnected) { await apiPost(`/players/${id}/revive`); return; }
+    if (BACKEND_URL) { await apiPost(`/players/${id}/revive`); return; }
     const p = allPlayers.find(x => x.id === id);
     if (p) { p.status = 'active'; updateUI(); saveDemoState(); if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers }); }
   };
 
   window.toggleShield = async (id, hasShield) => {
-    if (socketConnected) { await apiPost(`/players/${id}/shield`, { hasShield, rounds: 1 }); return; }
+    if (BACKEND_URL) { await apiPost(`/players/${id}/shield`, { hasShield, rounds: 1 }); return; }
     const p = allPlayers.find(x => x.id === id);
     if (p) { p.hasShield = hasShield; p.status = hasShield ? 'immune' : 'active'; updateUI(); saveDemoState(); if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers }); }
   };
@@ -991,7 +1020,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const newNum = prompt('أدخل رقم اللاعب الجديد:');
     if (!newNum || isNaN(newNum)) return;
     const num = parseInt(newNum, 10);
-    if (socketConnected) { const d = await apiPost(`/players/${id}/number`, { playerNumber: num }); if (!d.success) alert(d.reason); return; }
+    if (BACKEND_URL) { const d = await apiPost(`/players/${id}/number`, { playerNumber: num }); if (!d.success) alert(d.reason); return; }
     const p = allPlayers.find(x => x.id === id);
     if (p) { p.playerNumber = num; updateUI(); saveDemoState(); if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers }); }
   };
@@ -1023,7 +1052,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnClearLogs) {
     btnClearLogs.addEventListener('click', async () => {
-      if (socketConnected) await apiDelete('/logs');
+      if (BACKEND_URL) await apiDelete('/logs');
       if (logsContainer) logsContainer.innerHTML = '';
       const drawerLogs = document.getElementById('drawerLogsContainer');
       if (drawerLogs) drawerLogs.innerHTML = '';
@@ -1033,7 +1062,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDrawerClearLogs = document.getElementById('btnDrawerClearLogs');
   if (btnDrawerClearLogs) {
     btnDrawerClearLogs.addEventListener('click', async () => {
-      if (socketConnected) await apiDelete('/logs');
+      if (BACKEND_URL) await apiDelete('/logs');
       if (logsContainer) logsContainer.innerHTML = '';
       const drawerLogs = document.getElementById('drawerLogsContainer');
       if (drawerLogs) drawerLogs.innerHTML = '';
@@ -1168,7 +1197,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   async function saveAdminGifts() {
-    if (socketConnected) {
+    if (BACKEND_URL) {
       await apiPost('/settings', { gifts: settings.gifts });
     } else {
       if (stateSnapshot) stateSnapshot.settings = settings;
@@ -1198,7 +1227,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showPlayerAvatars: selAv ? selAv.checked : true,
       showPlayerNames:   selNames ? selNames.checked : true
     };
-    if (socketConnected) {
+    if (BACKEND_URL) {
       await apiPost('/settings', { wheelConfig });
     } else {
       if (settings) settings.wheelConfig = wheelConfig;

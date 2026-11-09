@@ -6,6 +6,10 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node server/index.js",
+    "test": "node test_connector.js && node test_scenario.js && node test_http.js",
+    "test:connector": "node test_connector.js",
+    "test:scenario": "node test_scenario.js",
+    "test:http": "node test_http.js",
     "postinstall": "node patch-connector.js"
   },
   "keywords": [

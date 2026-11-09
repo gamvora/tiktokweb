@@ -62,23 +62,28 @@ const io = new Server(server, {
   pingInterval: 25000
 });
 
-// Serve static frontend (for local npm start)
-app.use(express.static(path.join(__dirname, '..', 'public')));
-app.use('/assets', express.static(path.join(__dirname, '..', 'assets')));
-app.use('/assets', express.static(path.join(__dirname, '..', 'public', 'assets')));
+// وراء Railway/Render/Vercel نثق بالبروكسي للحصول على IP والعنوان الصحيح
+app.set('trust proxy', 1);
 
 // Initialize core instances
 const gameState = new GameState();
 const tiktokConnector = new TikTokConnector(gameState);
 
-// Routes
+// Routes (قبل الملفات الثابتة حتى لا تتضارب)
 app.use('/api', createApiRouter(gameState, tiktokConnector));
 app.use('/api/tikfinity', createTikFinityRouter(gameState, tiktokConnector));
 
-// HTML routes for local dev
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
-app.get('/overlay', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'admin.html')));
+// Serve static frontend from the repository root (مصدر واحد لكل البيئات)
+const ROOT = path.join(__dirname, '..');
+app.use('/css', express.static(path.join(ROOT, 'css')));
+app.use('/js', express.static(path.join(ROOT, 'js')));
+app.use('/assets', express.static(path.join(ROOT, 'assets')));
+
+const sendIndex = (req, res) => res.sendFile(path.join(ROOT, 'index.html'));
+const sendAdmin = (req, res) => res.sendFile(path.join(ROOT, 'admin.html'));
+
+app.get(['/', '/index.html', '/overlay'], sendIndex);
+app.get(['/admin', '/admin.html'], sendAdmin);
 
 // ─── Socket.IO Real-time Events ──────────────────────────────────────────────
 
@@ -124,7 +129,7 @@ tiktokConnector.on('chat', (comment) => io.emit('tiktok_chat', comment));
 tiktokConnector.on('gift', (gift) => io.emit('tiktok_gift', gift));
 
 // Start server
-const PORT = process.env.PORT || 3001;
+const PORT = config.PORT;
 server.listen(PORT, '0.0.0.0', () => {
   console.log('═══════════════════════════════════════════════════════════');
   console.log(`🎡  TikTok Live Roulette — Backend v2.0 running on port ${PORT}`);
@@ -133,4 +138,28 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🔗  TikFinity Webhook: http://localhost:${PORT}/api/tikfinity/webhook`);
   console.log(`🌐  Frontend URL env: ${process.env.FRONTEND_URL || '(not set - all origins allowed in dev)'}`);
   console.log('═══════════════════════════════════════════════════════════');
+});
+
+// إغلاق نظيف عند إيقاف الخادم (Railway/Render يرسلان SIGTERM)
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`\n[Server] ${signal} received, shutting down...`);
+  try { await tiktokConnector.disconnect(); } catch (e) {}
+  gameState.stopTimer();
+  server.close(() => {
+    console.log('[Server] Closed. Bye!');
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(0), 5000).unref();
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('unhandledRejection', (err) => {
+  console.error('[Server] Unhandled rejection:', err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[Server] Uncaught exception:', err);
 });

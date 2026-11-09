@@ -1,10 +1,19 @@
 const path = require('path');
 
+const ROOT_DIR = path.join(__dirname, '..');
+
+// يمكن تخصيص مجلد البيانات عبر متغير البيئة DATA_DIR
+// (مفيد للاختبارات وللنشر على منصات لا تسمح بالكتابة داخل مجلد المشروع)
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(ROOT_DIR, 'data');
+
 const config = {
-  PORT: process.env.PORT || 3001,
-  DATA_DIR: path.join(__dirname, '..', 'data'),
-  DATA_FILE: path.join(__dirname, '..', 'data', 'game_state.json'),
-  LOGS_FILE: path.join(__dirname, '..', 'data', 'activity_logs.json'),
+  PORT: parseInt(process.env.PORT, 10) || 3001,
+  ROOT_DIR,
+  DATA_DIR,
+  DATA_FILE: path.join(DATA_DIR, 'game_state.json'),
+  LOGS_FILE: path.join(DATA_DIR, 'activity_logs.json'),
 
   // Official TikTok Live Gift Catalog with Real Photos
   giftCatalog: [

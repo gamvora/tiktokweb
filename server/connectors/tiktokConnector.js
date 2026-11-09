@@ -91,9 +91,7 @@ class TikTokConnector extends EventEmitter {
 
         this.connection = new TikTokLiveConnection(cleanUsername, {
           processInitialData: false,
-          enableExtendedGiftInfo: false,
-          enableWebsocketUpgrade: true,
-          requestPollingIntervalMs: 1000
+          enableExtendedGiftInfo: false
         });
 
         this.setupListeners();
@@ -115,6 +113,11 @@ class TikTokConnector extends EventEmitter {
       } catch (err) {
         lastErr = err;
         console.warn(`[TikTokConnector] Attempt ${attempt} failed: ${err.message}`);
+        // تنظيف المحاولة الفاشلة حتى لا تبقى اتصالات معلّقة
+        if (this.connection) {
+          try { await this.connection.disconnect(); } catch (e) {}
+          this.connection = null;
+        }
         if (attempt < maxRetries) {
           await new Promise((r) => setTimeout(r, 1200));
         }
@@ -216,6 +219,7 @@ class TikTokConnector extends EventEmitter {
 
         const g = data.gift || {};
         const giftName = g.name || data.giftName || data.describe || 'هدية';
+        const giftId = data.giftId || g.id || data.gift?.id || null;
         const diamonds = g.diamondCount || data.diamondCount || 1;
         const repeatCount = data.repeatCount || data.groupCount || 1;
 
@@ -224,7 +228,7 @@ class TikTokConnector extends EventEmitter {
           uniqueId,
           nickname,
           profilePictureUrl: avatar,
-          giftId: data.giftId || g.id,
+          giftId,
           giftName,
           diamonds,
           repeatCount,
@@ -265,14 +269,25 @@ class TikTokConnector extends EventEmitter {
 
   dispatchGift(giftEvent) {
     const totalDiamonds = (giftEvent.diamonds || 1) * (giftEvent.repeatCount || 1);
-    const gifts = this.gameState.settings.gifts;
+    const gifts = this.gameState.settings.gifts || {};
+    const state = this.gameState.state;
+    const player = this.gameState.getPlayerById(giftEvent.userId || giftEvent.uniqueId);
+
+    const matches = (conf) => this.gameState.giftMatchesCategory(giftEvent, conf);
+    const giftMeta = {
+      giftId: giftEvent.giftId,
+      giftName: giftEvent.giftName,
+      eventId: giftEvent.eventId
+    };
 
     this.gameState.logActivity('GIFT_RECEIVED', `🎁 ${giftEvent.nickname} أرسل [${giftEvent.giftName}] (${totalDiamonds} عملة)`, { gift: giftEvent });
 
-    if (this.gameState.state === 'DEFENDING') {
+    // 1) الدفاع عن النفس: فقط الهدية المحددة للدفاع ومن اللاعب المستهدف
+    if (state === 'DEFENDING' && this.gameState.targetPlayer && matches(gifts.defense)) {
       const handled = this.gameState.handleDefenseGift({
         userId: giftEvent.userId,
         uniqueId: giftEvent.uniqueId,
+        giftId: giftEvent.giftId,
         giftName: giftEvent.giftName,
         diamonds: giftEvent.diamonds,
         repeatCount: giftEvent.repeatCount,
@@ -281,63 +296,71 @@ class TikTokConnector extends EventEmitter {
       if (handled) return;
     }
 
-    if (this.gameState.state === 'FINAL_ROUND') {
+    // 2) حسم الجولة النهائية
+    if (state === 'FINAL_ROUND' && matches(gifts.finalRound)) {
       const handled = this.gameState.handleFinalRoundGift({
         userId: giftEvent.userId,
         uniqueId: giftEvent.uniqueId,
         nickname: giftEvent.nickname,
-        coins: totalDiamonds
+        giftId: giftEvent.giftId,
+        giftName: giftEvent.giftName,
+        coins: totalDiamonds,
+        eventId: giftEvent.eventId
       });
       if (handled) return;
     }
 
-    const player = this.gameState.getPlayerById(giftEvent.userId || giftEvent.uniqueId);
-    if (player && player.status === 'eliminated') {
-      if (totalDiamonds >= (gifts.rejoin.minCoins || 5)) {
-        this.gameState.handleRejoin({
-          userId: giftEvent.userId,
-          uniqueId: giftEvent.uniqueId,
-          nickname: giftEvent.nickname,
-          profilePictureUrl: giftEvent.profilePictureUrl,
-          coins: totalDiamonds,
-          eventId: giftEvent.eventId
-        });
-        return;
-      }
+    // 3) تحدي الفائز بعد انتهاء اللعبة
+    if (state === 'FINISHED' && this.gameState.winner && matches(gifts.winnerChallenge)) {
+      const challenger = player || {
+        id: giftEvent.userId,
+        nickname: giftEvent.nickname,
+        uniqueId: giftEvent.uniqueId,
+        profilePictureUrl: giftEvent.profilePictureUrl,
+        playerNumber: 999
+      };
+      this.gameState.startWinnerChallenge(challenger);
+      return;
     }
 
-    if (totalDiamonds >= (gifts.help?.minCoins || 16)) {
+    // 4) عودة اللاعب المستبعد
+    if (player && player.status === 'eliminated' && matches(gifts.rejoin)) {
+      const handled = this.gameState.handleRejoin({
+        userId: giftEvent.userId,
+        uniqueId: giftEvent.uniqueId,
+        nickname: giftEvent.nickname,
+        profilePictureUrl: giftEvent.profilePictureUrl,
+        giftId: giftEvent.giftId,
+        giftName: giftEvent.giftName,
+        coins: totalDiamonds,
+        eventId: giftEvent.eventId
+      });
+      if (handled) return;
+    }
+
+    // 5) الحصانة / الدرع
+    if (matches(gifts.shield)) {
+      const handled = this.gameState.handleShieldGift({
+        userId: giftEvent.userId,
+        uniqueId: giftEvent.uniqueId,
+        giftId: giftEvent.giftId,
+        giftName: giftEvent.giftName,
+        coins: totalDiamonds,
+        eventId: giftEvent.eventId
+      });
+      if (handled) return;
+    }
+
+    // 6) المساعدة / الإنقاذ
+    if (matches(gifts.help)) {
       this.gameState.handleHelp({
         helperUserId: giftEvent.userId,
         helperName: giftEvent.nickname,
+        giftId: giftEvent.giftId,
+        giftName: giftEvent.giftName,
         coins: totalDiamonds,
         eventId: giftEvent.eventId
       });
-      return;
-    }
-
-    if (totalDiamonds >= (gifts.shield?.minCoins || 30)) {
-      this.gameState.handleShieldGift({
-        userId: giftEvent.userId,
-        uniqueId: giftEvent.uniqueId,
-        coins: totalDiamonds,
-        eventId: giftEvent.eventId
-      });
-      return;
-    }
-
-    if (this.gameState.state === 'FINISHED' && this.gameState.winner) {
-      if (totalDiamonds >= (gifts.winnerChallenge?.minCoins || 100)) {
-        const challenger = player || {
-          id: giftEvent.userId,
-          nickname: giftEvent.nickname,
-          uniqueId: giftEvent.uniqueId,
-          profilePictureUrl: giftEvent.profilePictureUrl,
-          playerNumber: 999
-        };
-        this.gameState.startWinnerChallenge(challenger);
-        return;
-      }
     }
   }
 }

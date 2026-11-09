@@ -3,65 +3,12 @@
 // يتصل تلقائياً بالـ backend على Railway أو يعمل في وضع Demo
 // ═══════════════════════════════════════════════════════════════
 
-// ── تحديد عنوان الـ backend ─────────────────────────────────
-// إذا كان الموقع يعمل محلياً، يتصل بـ localhost
-// إذا كان على Vercel، يقرأ عنوان Railway من المتغير المضمّن في الكود
-// تغيير هذا السطر بعنوان Railway الخاص بك!
-const BACKEND_URL = window.BACKEND_URL || 
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? `${window.location.protocol}//${window.location.hostname}:3001`
-    : window.__RAILWAY_URL__ || '');
+// ── تحديد عنوان الـ backend (من js/backend.js المشترك) ─────
+const BACKEND_URL = window.BACKEND_URL || '';
 
-// ── تهيئة Socket.IO آمنة (لا تكسر الصفحة إذا فشل الاتصال) ─
+// ── متغيرات Socket.IO ───────────────────────────────────────
 let socket = null;
 let socketConnected = false;
-
-function initSocket() {
-  if (!BACKEND_URL || typeof io === 'undefined') {
-    console.log('[Overlay] Socket.IO غير متاح - وضع Demo مفعّل');
-    startDemoMode();
-    return;
-  }
-
-  try {
-    socket = io(BACKEND_URL, {
-      transports: ['websocket', 'polling'],
-      timeout: 8000,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000
-    });
-
-    socket.on('connect', () => {
-      console.log('[Overlay] ✅ متصل بالـ backend:', BACKEND_URL);
-      socketConnected = true;
-      if (tiktokBadgeEl) {
-        tiktokBadgeEl.textContent = '🔗 متصل بالخادم';
-        tiktokBadgeEl.style.borderColor = 'rgba(16,185,129,0.4)';
-      }
-    });
-
-    socket.on('connect_error', (err) => {
-      console.warn('[Overlay] فشل الاتصال بالخادم:', err.message);
-    });
-
-    socket.on('disconnect', () => {
-      socketConnected = false;
-    });
-
-    // إذا لم يتصل في 6 ثوان، شغّل وضع Demo
-    setTimeout(() => {
-      if (!socketConnected && !currentSnapshot) {
-        console.log('[Overlay] لم يتصل بالخادم - تشغيل وضع Demo');
-        startDemoMode();
-      }
-    }, 6000);
-
-    setupSocketEvents();
-  } catch (e) {
-    console.error('[Overlay] خطأ في تهيئة Socket.IO:', e);
-    startDemoMode();
-  }
-}
 
 document.addEventListener('DOMContentLoaded', () => {
   // إنشاء BroadcastChannel للتواصل مع نافذة Admin في نفس المتصفح
@@ -237,9 +184,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const setDrawerDefSec = document.getElementById('setDrawerDefSec');
   const drawerLogsContainer = document.getElementById('drawerLogsContainer');
   const btnDrawerClearLogs = document.getElementById('btnDrawerClearLogs');
+  const backendUrlInput = document.getElementById('backendUrlInput');
+  const btnSaveBackendUrl = document.getElementById('btnSaveBackendUrl');
 
   // ── State ─────────────────────────────────────────────────
   let currentSnapshot = null;
+  let lastVisualState = null;
   let allPlayers = [];
   let currentTimerTotal = 30;
   let currentTargetSelectTotal = 20;
@@ -300,12 +250,26 @@ document.addEventListener('DOMContentLoaded', () => {
   if (drawerWebhookUrl) {
     drawerWebhookUrl.value = BACKEND_URL
       ? `${BACKEND_URL}/api/tikfinity/webhook`
-      : `${window.location.origin}/api/tikfinity/webhook`;
+      : '⚠️ أدخل رابط الخادم أولاً';
   }
   if (btnCopyWebhook) {
     btnCopyWebhook.addEventListener('click', () => {
+      if (!BACKEND_URL) { alert('أدخل رابط خادم الباك إند أولاً'); return; }
       navigator.clipboard.writeText(drawerWebhookUrl.value).catch(() => {});
       alert('تم نسخ رابط TikFinity Webhook!');
+    });
+  }
+
+  // ── Backend URL ───────────────────────────────────────────
+  if (backendUrlInput) backendUrlInput.value = BACKEND_URL || '';
+  if (btnSaveBackendUrl) {
+    btnSaveBackendUrl.addEventListener('click', () => {
+      const value = (backendUrlInput?.value || '').trim();
+      if (value && !/^https?:\/\//i.test(value)) {
+        alert('اكتب الرابط كاملاً مع https:// مثال: https://your-app.up.railway.app');
+        return;
+      }
+      window.setBackendUrl(value);
     });
   }
 
@@ -320,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── API Helper ────────────────────────────────────────────
   async function apiPost(path, body = {}) {
-    if (!BACKEND_URL && !socketConnected) return null;
+    if (!BACKEND_URL) return null;
     try {
       const url = BACKEND_URL ? `${BACKEND_URL}/api${path}` : `/api${path}`;
       const res = await fetch(url, {
@@ -338,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function triggerRouletteSpin() {
     if (window.soundEngine) window.soundEngine.init();
 
-    if (socketConnected) {
+    if (BACKEND_URL) {
       const data = await apiPost('/control/roulette/start');
       if (data && !data.success) alert(data.reason || 'تعذر تشغيل الروليت');
       return;
@@ -412,6 +376,68 @@ document.addEventListener('DOMContentLoaded', () => {
       handleStateVisuals(snapshot);
       updateDrawerUI();
       updateSpinButtonState();
+    });
+
+    socket.on('round_advanced', ({ roundNumber } = {}) => {
+      hideAllModals();
+      if (currentSnapshot) {
+        currentSnapshot.roundNumber = roundNumber || ((currentSnapshot.roundNumber || 1) + 1);
+        currentSnapshot.chosenPlayer = null;
+        currentSnapshot.targetPlayer = null;
+        currentSnapshot.state = 'READY';
+      }
+      renderAll();
+      setBanner(`🔄 بدأت الجولة #${roundNumber || currentSnapshot?.roundNumber || 1}`);
+    });
+
+    socket.on('target_timeout_action', (payload = {}) => {
+      if (targetSelectionModal) targetSelectionModal.classList.remove('active');
+      if (turnModal) turnModal.classList.remove('active');
+      if (payload.action === 'skip') {
+        setBanner('⏭️ انتهى وقت اختيار الهدف — تخطي الدور');
+      } else if (payload.action === 'respin') {
+        setBanner('🎡 انتهى وقت اختيار الهدف — إعادة تدوير العجلة');
+      } else if (payload.action === 'random') {
+        setBanner(`🎯 انتهى وقت اختيار الهدف — تم اختيار ${payload.target?.nickname || 'هدف عشوائي'}`);
+      }
+    });
+
+    socket.on('target_immune_blocked', ({ target } = {}) => {
+      showResultModal('🛡️ الهدف محمي!',
+        `${target?.nickname || 'اللاعب'} يمتلك درع الحصانة ولا يمكن استهدافه.`, '🛡️', '#60a5fa');
+      setTimeout(() => hideAllModals(), 3000);
+    });
+
+    socket.on('player_shield_activated', ({ player, rounds } = {}) => {
+      if (window.soundEngine) window.soundEngine.savedFanfare();
+      showResultModal('🛡️ تم تفعيل الحصانة!',
+        `${player?.nickname || 'اللاعب'} محمي من الاستهداف لمدة ${rounds || 1} جولة.`, '🛡️', '#60a5fa');
+      setTimeout(() => hideAllModals(), 3200);
+    });
+
+    socket.on('final_round_started', ({ duration } = {}) => {
+      hideAllModals();
+      setBanner(`🏆 بدأت مرحلة الحسم النهائي! أرسل الهدية المطلوبة (${duration || 60} ثانية)`);
+    });
+
+    socket.on('final_round_score_updated', ({ player, score } = {}) => {
+      setBanner(`🏆 ${player?.nickname || 'لاعب'} في الصدارة برصيد ${score || 0} عملة!`);
+    });
+
+    socket.on('winner_challenge_started', ({ challenger, winner } = {}) => {
+      hideAllModals();
+      if (window.soundEngine) window.soundEngine.siren();
+      showResultModal('⚔️ تحدي الفائز!',
+        `${challenger?.nickname || 'متحدٍ'} يتحدى ${winner?.nickname || 'الفائز'}!`, '⚔️', '#a855f7');
+    });
+
+    socket.on('challenge_ended', ({ winner } = {}) => {
+      setBanner(`👑 انتهى التحدي — الفائز ${winner?.nickname || 'البطل'}!`);
+    });
+
+    socket.on('timer_stopped', () => {
+      updateTimerVisual(0, currentTimerTotal);
+      updateTargetSelectTimerVisual(0, currentTargetSelectTotal);
     });
 
     socket.on('players_updated', (players) => {
@@ -532,9 +558,11 @@ document.addEventListener('DOMContentLoaded', () => {
         timers: { defenseDuration: 30, targetSelectDuration: 20 },
         gifts: {
           defense: { giftName: 'وردة', giftId: 'rose', minCoins: 1 },
-          shield: { giftName: 'نظارات شمسية', giftId: 'sunglasses', minCoins: 199 },
-          rejoin: { giftName: 'قلب الحب', giftId: 'heart', minCoins: 49 },
-          finalRound: { giftName: 'صاروخ', giftId: 'rocket', minCoins: 4888 }
+          shield: { giftName: 'نظارات شمسية', giftId: 'sunglasses', minCoins: 30 },
+          rejoin: { giftName: 'قلب الحب', giftId: 'heart', minCoins: 5 },
+          help: { giftName: 'كاب تيك توك', giftId: 'cap', minCoins: 16 },
+          finalRound: { giftName: 'طائرة نفاثة / صاروخ', giftId: 'rocket', minCoins: 100 },
+          winnerChallenge: { giftName: 'تاج ذهبي', giftId: 'crown', minCoins: 100 }
         },
         wheelConfig: { theme: 'neon', spinDuration: 5000, showPlayerAvatars: true, showPlayerNames: true }
       }
@@ -770,13 +798,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function handleStateVisuals(snapshot) {
+    const state = snapshot.state;
+
     if (joinInstructionsCard) {
-      const isJoinState = (snapshot.state === 'WAITING_FOR_PLAYERS' || snapshot.state === 'READY' || snapshot.state === 'WAITING_JOIN') && snapshot.settings?.isJoinOpen !== false;
+      const isJoinState = (state === 'WAITING_FOR_PLAYERS' || state === 'READY' || state === 'WAITING_JOIN') && snapshot.settings?.isJoinOpen !== false;
       joinInstructionsCard.classList.toggle('hidden', !isJoinState);
       if (isJoinState && joinKeywordHighlight) joinKeywordHighlight.textContent = snapshot.settings?.joinKeyword || 'تم';
     }
 
-    switch (snapshot.state) {
+    // إخفاء النوافذ القديمة فقط عند الانتقال الفعلي إلى مرحلة جديدة
+    // (state_updated يُبثّ كثيراً دون تغيير المرحلة، ولا يجب أن يخفي نتائج الأحداث)
+    const stateChanged = state !== lastVisualState;
+    lastVisualState = state;
+    const statesToClearModals = [
+      'WAITING_FOR_PLAYERS', 'WAITING_JOIN', 'READY', 'SPINNING',
+      'NEXT_ROUND', 'FINAL_ROUND', 'FINISHED'
+    ];
+    if (stateChanged && statesToClearModals.includes(state)) hideAllModals();
+
+    switch (state) {
       case 'WAITING_FOR_PLAYERS':
       case 'WAITING_JOIN':
         setBanner(`في انتظار اللاعبين... اكتب [${snapshot.settings?.joinKeyword || 'تم'}] في الشات للمشاركة!`);
@@ -804,8 +844,29 @@ document.addEventListener('DOMContentLoaded', () => {
           showConfrontationModal(snapshot.chosenPlayer, snapshot.targetPlayer);
         }
         break;
+      case 'SAVED':
+        if (snapshot.targetPlayer) {
+          setBanner(`🛡️ ${snapshot.targetPlayer.nickname} نجا من الإقصاء!`);
+        }
+        break;
+      case 'NEXT_ROUND':
+        setBanner('🔄 جاري تجهيز الجولة القادمة...');
+        break;
+      case 'CHALLENGE':
+        if (snapshot.challenger && snapshot.winner) {
+          setBanner(`⚔️ ${snapshot.challenger.nickname} يتحدى ${snapshot.winner.nickname}!`);
+        } else {
+          setBanner('⚔️ جاري تحدي الفائز...');
+        }
+        break;
+      case 'FINAL_ROUND':
+        setBanner('🏆 مرحلة الحسم النهائي! أرسل الهدية المطلوبة للفوز.');
+        break;
       case 'FINISHED':
-        if (snapshot.winner) setBanner(`👑 البطل النهائي: ${snapshot.winner.nickname}!`);
+        if (snapshot.winner) {
+          setBanner(`👑 البطل النهائي: ${snapshot.winner.nickname}!`);
+          if (winnerModal && !winnerModal.classList.contains('active')) showWinnerModal(snapshot.winner);
+        }
         break;
     }
   }
@@ -876,7 +937,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!currentSnapshot?.chosenPlayer) return;
     const chooser = currentSnapshot.chosenPlayer;
 
-    if (socketConnected) {
+    if (BACKEND_URL) {
       await apiPost('/simulate/comment', { uniqueId: chooser.uniqueId, commentText: `${targetNumber}` });
       return;
     }
@@ -1033,7 +1094,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (drawerTiktokStatusText) drawerTiktokStatusText.innerHTML = `<span style="color:#f59e0b;">⏳ جاري محاولة الاتصال بـ @${username}...</span>`;
 
-      if (socketConnected && BACKEND_URL) {
+      if (BACKEND_URL) {
         const data = await apiPost('/tiktok/connect', { username });
         if (data) {
           if (!data.success) {
@@ -1054,7 +1115,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnDrawerDisconnect) {
     btnDrawerDisconnect.addEventListener('click', async () => {
-      if (socketConnected) await apiPost('/tiktok/disconnect');
+      if (BACKEND_URL) await apiPost('/tiktok/disconnect');
       const s = { status: 'disconnected', username: null };
       updateTikTokBadge(s);
       if (bc) bc.postMessage({ type: 'tiktok_status', status: s });
@@ -1074,7 +1135,7 @@ document.addEventListener('DOMContentLoaded', () => {
   drawerControlActions.forEach(([btn, path, body]) => {
     if (!btn) return;
     btn.addEventListener('click', async () => {
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost(path, body);
       } else {
         appendDrawerLog({ timestamp: new Date().toISOString(), type: 'INFO', message: `ℹ️ ${btn.textContent.trim()} - يتطلب اتصال بالخادم` });
@@ -1085,7 +1146,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnDrawerFinalRound) {
     btnDrawerFinalRound.addEventListener('click', async () => {
       if (confirm('هل تريد بدء مرحلة الحسم النهائي الآن؟')) {
-        if (socketConnected) {
+        if (BACKEND_URL) {
           await apiPost('/control/round/final');
           adminDrawerModal.classList.remove('active');
         } else {
@@ -1098,7 +1159,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnDrawerResetGame) {
     btnDrawerResetGame.addEventListener('click', async () => {
       if (confirm('تحذير: هل أنت متأكد من إعادة تعيين اللعبة؟')) {
-        if (socketConnected) {
+        if (BACKEND_URL) {
           await apiPost('/control/game/reset');
         } else {
           allPlayers = [];
@@ -1172,7 +1233,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentSnapshot.settings.gifts) currentSnapshot.settings.gifts = {};
         if (!currentSnapshot.settings.gifts[catKey]) currentSnapshot.settings.gifts[catKey] = {};
         currentSnapshot.settings.gifts[catKey].minCoins = newCoins;
-        if (socketConnected) await apiPost('/settings', { gifts: currentSnapshot.settings.gifts });
+        if (BACKEND_URL) await apiPost('/settings', { gifts: currentSnapshot.settings.gifts });
         else if (bc) bc.postMessage({ type: 'settings_updated', settings: currentSnapshot.settings });
       });
     });
@@ -1186,7 +1247,7 @@ document.addEventListener('DOMContentLoaded', () => {
     currentSnapshot.settings.gifts[catKey].giftName = giftName;
     currentSnapshot.settings.gifts[catKey].minCoins = defaultCoins;
 
-    if (socketConnected) await apiPost('/settings', { gifts: currentSnapshot.settings.gifts });
+    if (BACKEND_URL) await apiPost('/settings', { gifts: currentSnapshot.settings.gifts });
     else if (bc) bc.postMessage({ type: 'settings_updated', settings: currentSnapshot.settings });
     renderGiftConfigTab();
     updateGiftsLegend();
@@ -1203,7 +1264,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showPlayerNames: wheelShowNames?.checked !== false
       };
       wheel.updateConfig(wc);
-      if (socketConnected) await apiPost('/settings', { wheelConfig: wc });
+      if (BACKEND_URL) await apiPost('/settings', { wheelConfig: wc });
       else if (bc) {
         if (currentSnapshot?.settings) currentSnapshot.settings.wheelConfig = wc;
         bc.postMessage({ type: 'settings_updated', settings: currentSnapshot?.settings });
@@ -1215,7 +1276,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Drawer Simulator
   if (btnDrawerMockTen) {
     btnDrawerMockTen.addEventListener('click', async () => {
-      if (socketConnected) {
+      if (BACKEND_URL) {
         const mockNames = [
           { name: 'محمد 👑', user: 'mohammed_king' }, { name: 'سارة ✨', user: 'queen_sara' },
           { name: 'أحمد ⚡', user: 'ahmed_hawk' }, { name: 'فهد 🏎️', user: 'fahad_hero' },
@@ -1258,7 +1319,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSimDrawerJoin.addEventListener('click', async () => {
       const u = simDrawerJoinUser?.value?.trim().replace(/^@/, '') || `user_${Date.now() % 1000}`;
       const n = simDrawerJoinNick?.value?.trim() || u;
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/simulate/join', { nickname: n, uniqueId: u, avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${u}` });
       } else {
         const nextNum = allPlayers.length > 0 ? Math.max(...allPlayers.map(p => p.playerNumber || 0)) + 1 : 1;
@@ -1279,7 +1340,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const uid = simDrawerCommentUser?.value;
       const txt = simDrawerCommentText?.value?.trim();
       if (!txt) return;
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/simulate/comment', { uniqueId: uid, commentText: txt });
       } else {
         const num = parseInt(txt, 10);
@@ -1324,7 +1385,7 @@ document.addEventListener('DOMContentLoaded', () => {
         giftName = gConf?.finalRound?.giftName || 'صاروخ'; coins = gConf?.finalRound?.minCoins || 100;
       }
 
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/simulate/gift', { uniqueId, giftName, coins, repeatCount: 1 });
       } else {
         const p = allPlayers.find(x => x.uniqueId === uniqueId);
@@ -1349,7 +1410,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const uniqueId = drawerAddUser?.value?.trim();
       if (!nickname) return;
 
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/players/add', { nickname, uniqueId });
       } else {
         const nextNum = allPlayers.length > 0 ? Math.max(...allPlayers.map(p => p.playerNumber || 0)) + 1 : 1;
@@ -1392,14 +1453,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   window.drawerRevivePlayer = async (id) => {
-    if (socketConnected) { await apiPost(`/players/${id}/revive`.replace('/api', '')); }
+    if (BACKEND_URL) { await apiPost(`/players/${id}/revive`.replace('/api', '')); }
     else {
       const p = allPlayers.find(x => x.id === id);
       if (p) { p.status = 'active'; renderAll(); if (bc) bc.postMessage({ type: 'players_updated', players: allPlayers }); }
     }
   };
   window.drawerToggleShield = async (id, hasShield) => {
-    if (socketConnected) {
+    if (BACKEND_URL) {
       const url = BACKEND_URL ? `${BACKEND_URL}/api/players/${id}/shield` : `/api/players/${id}/shield`;
       await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hasShield, rounds: 1 }) });
     } else {
@@ -1409,7 +1470,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   window.drawerDeletePlayer = async (id) => {
     if (!confirm('حذف هذا اللاعب؟')) return;
-    if (socketConnected) {
+    if (BACKEND_URL) {
       const url = BACKEND_URL ? `${BACKEND_URL}/api/players/${id}` : `/api/players/${id}`;
       await fetch(url, { method: 'DELETE' });
     } else {
@@ -1440,7 +1501,7 @@ document.addEventListener('DOMContentLoaded', () => {
           defenseDuration: parseInt(setDrawerDefSec?.value || '30', 10)
         }
       };
-      if (socketConnected) {
+      if (BACKEND_URL) {
         await apiPost('/settings', updated);
       } else {
         if (currentSnapshot?.settings) Object.assign(currentSnapshot.settings, updated);
@@ -1472,7 +1533,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnDrawerClearLogs) {
     btnDrawerClearLogs.addEventListener('click', async () => {
-      if (socketConnected) {
+      if (BACKEND_URL) {
         const url = BACKEND_URL ? `${BACKEND_URL}/api/logs` : '/api/logs';
         await fetch(url, { method: 'DELETE' }).catch(() => {});
       }
@@ -1480,7 +1541,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (BACKEND_URL && socketConnected) {
+  if (BACKEND_URL) {
     fetch(`${BACKEND_URL}/api/logs?limit=40`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.logs) d.logs.reverse().forEach(appendDrawerLog); })

@@ -384,6 +384,18 @@
                 ضع هذا الرابط في إعدادات Webhook ببرنامج TikFinity مع تفعيل Chat و Gift و Join وسيقوم الموقع باستقبال كافة الأحداث تلقائياً فوراً!
               </p>
             </div>
+
+            <!-- Backend URL -->
+            <div class="drawer-form-group" style="margin-top: 18px; background: rgba(16, 185, 129, 0.08); padding: 14px; border-radius: 14px; border: 1px solid rgba(16, 185, 129, 0.25);">
+              <label class="drawer-label" style="color: #6ee7b7; font-size: 14px;">3. رابط خادم الباك إند (Backend URL):</label>
+              <div class="drawer-row" style="margin-top: 8px;">
+                <input type="text" id="backendUrlInput" class="drawer-input" placeholder="https://your-app.up.railway.app" style="direction: ltr; text-align: left;">
+                <button id="btnSaveBackendUrl" class="drawer-btn drawer-btn-primary" style="white-space: nowrap;">💾 حفظ وإعادة الاتصال</button>
+              </div>
+              <p style="font-size: 12px; color: #94a3b8; margin-top: 6px; line-height: 1.5;">
+                مطلوب فقط عند فتح الموقع من GitHub Pages أو أي استضافة ثابتة. على Railway/Render يعمل تلقائياً بنفس النطاق.
+              </p>
+            </div>
           </div>
 
           <!-- Tab 2: Game Controls -->
@@ -589,11 +601,12 @@
   </script>
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>
-    // Fallback if CDN fails or local socket.io
-    if (typeof io === 'undefined') {
+    // Fallback إذا فشل CDN: نجرب نفس النطاق (يعمل فقط عند تشغيل الخادم محلياً/بنفس النطاق)
+    if (typeof io === 'undefined' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
       document.write('<script src="/socket.io/socket.io.js"><\/script>');
     }
   </script>
+  <script src="js/backend.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/roulette.js"></script>
   <script src="js/overlay.js"></script>

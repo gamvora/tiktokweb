@@ -1,6 +1,18 @@
 // Complete 25-step Scenario Verification Script
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+// مجلد بيانات مؤقت حتى لا تُلمس حالة اللعبة الحقيقية أثناء الاختبار
+const TEST_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'tiktok-roulette-scenario-'));
+process.env.DATA_DIR = TEST_DATA_DIR;
+
 const { GameState, GameStates } = require('./server/state/gameState');
 const config = require('./server/config');
+
+function cleanup() {
+  try { fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true }); } catch (e) {}
+}
 
 async function runScenarioTest() {
   console.log('🚀 Starting Complete 25-Step TikTok Live Roulette Scenario Test...\n');
@@ -94,6 +106,7 @@ async function runScenarioTest() {
   const defHandled = game.handleDefenseGift({
     userId: game.targetPlayer.userId,
     uniqueId: game.targetPlayer.uniqueId,
+    giftId: 'rose',
     giftName: 'وردة',
     diamonds: 1,
     repeatCount: 1,
@@ -125,6 +138,8 @@ async function runScenarioTest() {
   const rejoinRes = game.handleRejoin({
     userId: player5.userId,
     uniqueId: player5.uniqueId,
+    giftId: 'heart',
+    giftName: 'قلب الحب',
     coins: 5,
     eventId: 'evt_rejoin_1'
   });
@@ -137,6 +152,8 @@ async function runScenarioTest() {
     helperUserId: 'helper_user',
     helperName: 'المشاهد الكريم',
     targetPlayerNumber: 9,
+    giftId: 'cap',
+    giftName: 'كاب تيك توك',
     coins: 16,
     eventId: 'evt_help_1'
   });
@@ -147,6 +164,8 @@ async function runScenarioTest() {
   const shieldRes = game.handleShieldGift({
     userId: player2.userId,
     uniqueId: player2.uniqueId,
+    giftId: 'sunglasses',
+    giftName: 'نظارات شمسية',
     coins: 30,
     eventId: 'evt_shield_1'
   });
@@ -171,7 +190,10 @@ async function runScenarioTest() {
     userId: player7.userId,
     uniqueId: player7.uniqueId,
     nickname: player7.nickname,
-    coins: 500
+    giftId: 'rocket',
+    giftName: 'صاروخ',
+    coins: 500,
+    eventId: 'evt_final_1'
   });
   game.resolveFinalRound();
   assert(game.state === GameStates.FINISHED && game.winner.id === player7.id, '24', 'Player #7 won the Final Round and became Champion');
@@ -183,6 +205,7 @@ async function runScenarioTest() {
 
   // Cleanup any lingering timers
   game.stopTimer();
+  cleanup();
 
   console.log(`\n🎉 ALL 25 SCENARIOS AND LOGIC TESTS PASSED SUCCESSFULLY! (${passedSteps}/25+ checks passed)\n`);
   process.exit(0);
@@ -190,5 +213,6 @@ async function runScenarioTest() {
 
 runScenarioTest().catch(err => {
   console.error('Test failed with error:', err);
+  cleanup();
   process.exit(1);
 });

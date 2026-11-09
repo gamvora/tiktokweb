@@ -62,12 +62,7 @@ class GameState extends EventEmitter {
     if (saved) {
       try {
         if (saved.settings) {
-          this.settings = {
-            ...this.settings,
-            ...saved.settings,
-            gifts: { ...this.settings.gifts, ...(saved.settings.gifts || {}) },
-            wheelConfig: { ...this.settings.wheelConfig, ...(saved.settings.wheelConfig || {}) }
-          };
+          this.settings = this.mergeSettings(this.settings, saved.settings);
         }
         if (Array.isArray(saved.players)) this.players = saved.players;
         if (saved.roundNumber) this.roundNumber = saved.roundNumber;
@@ -87,9 +82,42 @@ class GameState extends EventEmitter {
     }
   }
 
+  // دمج عميق للإعدادات بحيث لا تُفقد الحقول الافتراضية عند حفظ جزء منها فقط
+  mergeSettings(base, patch) {
+    const result = { ...(base || {}) };
+    const incoming = patch || {};
+
+    for (const [key, value] of Object.entries(incoming)) {
+      if (key === 'gifts' && value && typeof value === 'object') {
+        const gifts = { ...(result.gifts || {}) };
+        for (const [cat, conf] of Object.entries(value)) {
+          gifts[cat] = { ...(gifts[cat] || {}), ...(conf || {}) };
+        }
+        result.gifts = gifts;
+      } else if (key === 'timers' && value && typeof value === 'object') {
+        result.timers = { ...(result.timers || {}), ...value };
+      } else if (key === 'wheelConfig' && value && typeof value === 'object') {
+        result.wheelConfig = { ...(result.wheelConfig || {}), ...value };
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
+  }
+
+  // نسخة من الإعدادات آمنة للإرسال للواجهة (بدون مفاتيح API)
+  getPublicSettings() {
+    const settings = JSON.parse(JSON.stringify(this.settings || {}));
+    delete settings.eulerApiKey;
+    delete settings.tiktokApiKey;
+    return settings;
+  }
+
   persist() {
+    // لا نحفظ مفاتيح API الحساسة داخل ملف الحالة
+    const settings = this.getPublicSettings();
     storage.saveGameState({
-      settings: this.settings,
+      settings,
       state: this.state,
       roundNumber: this.roundNumber,
       players: this.players,
@@ -203,8 +231,18 @@ class GameState extends EventEmitter {
 
     this.players = this.players.filter(p => p !== player);
 
-    // Re-check state if players dropped below 2
-    if (this.getActivePlayers().length < 2 && this.state === GameStates.READY) {
+    // إذا كان المحذوف هو صاحب الدور أو الهدف، نظّف المراجع المعلّقة
+    const wasChosen = this.chosenPlayer && this.chosenPlayer.id === player.id;
+    const wasTarget = this.targetPlayer && this.targetPlayer.id === player.id;
+    if (wasChosen) this.chosenPlayer = null;
+    if (wasTarget) this.targetPlayer = null;
+
+    if (wasChosen || wasTarget) {
+      this.stopTimer();
+      this.state = this.getActivePlayers().length >= 2
+        ? GameStates.READY
+        : GameStates.WAITING_FOR_PLAYERS;
+    } else if (this.getActivePlayers().length < 2 && this.state === GameStates.READY) {
       this.state = GameStates.WAITING_FOR_PLAYERS;
     }
 
@@ -300,9 +338,19 @@ class GameState extends EventEmitter {
       clearTimeout(this._defenseTimeout);
       this._defenseTimeout = null;
     }
-    this.timer.active = false;
-    this.timer.expiresAt = null;
-    this.timer.remaining = 0;
+    if (this._winnerTimeout) {
+      clearTimeout(this._winnerTimeout);
+      this._winnerTimeout = null;
+    }
+    // مهم: إعادة تصفير حالة الإيقاف المؤقت حتى لا تتجمد المؤقتات القادمة
+    this.isPaused = false;
+    this.timer = {
+      active: false,
+      type: null,
+      duration: 0,
+      remaining: 0,
+      expiresAt: null
+    };
     this.emit('timer_stopped');
   }
 
@@ -330,6 +378,66 @@ class GameState extends EventEmitter {
   }
 
   // -------------------------------------------------------------
+  // Gift Matching Helpers (مطابقة الهدايا الحقيقية)
+  // -------------------------------------------------------------
+
+  // إرجاع المعرّف القياسي للهدية من كتالوج الهدايا
+  resolveGiftKey(gift = {}) {
+    const catalog = config.giftCatalog || [];
+    const rawId = gift.giftId != null ? String(gift.giftId).trim().toLowerCase() : '';
+    const rawName = gift.giftName != null ? String(gift.giftName).trim().toLowerCase() : '';
+
+    let entry = rawId ? catalog.find(g => String(g.id).toLowerCase() === rawId) : null;
+    if (entry) return entry.id;
+
+    entry = catalog.find(g =>
+      (rawName && g.nameAr && g.nameAr.toLowerCase() === rawName) ||
+      (rawName && g.nameEn && g.nameEn.toLowerCase() === rawName) ||
+      (rawName && String(g.id).toLowerCase() === rawName)
+    );
+    if (entry) return entry.id;
+
+    // مطابقة جزئية للأسماء المترجمة أو المرفقة برقم/رموز
+    if (rawName) {
+      entry = catalog.find(g => {
+        const ar = (g.nameAr || '').toLowerCase();
+        const en = (g.nameEn || '').toLowerCase();
+        return (ar && (rawName.includes(ar) || ar.includes(rawName))) ||
+               (en && (rawName.includes(en) || en.includes(rawName)));
+      });
+      if (entry) return entry.id;
+    }
+
+    return rawId || rawName;
+  }
+
+  // هل الهدية المرسلة تطابق فئة الهدايا المطلوبة؟
+  giftMatchesCategory(gift = {}, conf = null) {
+    if (!conf) return false;
+
+    const sentKey = this.resolveGiftKey(gift);
+    const confKey = this.resolveGiftKey({ giftId: conf.giftId, giftName: conf.giftName });
+    if (sentKey && confKey) return sentKey === confKey;
+
+    const rawName = (gift.giftName || '').toLowerCase();
+    const confName = (conf.giftName || '').toLowerCase();
+    return !!(rawName && confName && (rawName.includes(confName) || confName.includes(rawName)));
+  }
+
+  // منع تكرار معالجة نفس الحدث مع تحديد سقف للذاكرة
+  rememberEvent(eventId) {
+    if (!eventId) return true;
+    const key = String(eventId);
+    if (this.processedEventIds.has(key)) return false;
+    this.processedEventIds.add(key);
+    if (this.processedEventIds.size > 1000) {
+      const oldest = this.processedEventIds.values().next().value;
+      this.processedEventIds.delete(oldest);
+    }
+    return true;
+  }
+
+  // -------------------------------------------------------------
   // Roulette Spin & Turn Flow (القاعدة الأساسية)
   // -------------------------------------------------------------
 
@@ -342,6 +450,20 @@ class GameState extends EventEmitter {
     if (this.state === GameStates.SPINNING) {
       return { success: false, reason: 'العجلة تدور بالفعل حالياً' };
     }
+
+    // لا نسمح بتدوير العجلة أثناء مراحل تتطلب إجراءً آخر
+    const blockedStates = [
+      GameStates.SELECTING_TARGET,
+      GameStates.ELIMINATION_WARNING,
+      GameStates.DEFENDING,
+      GameStates.FINAL_ROUND,
+      GameStates.CHALLENGE
+    ];
+    if (blockedStates.includes(this.state)) {
+      return { success: false, reason: 'لا يمكن تدوير العجلة في هذه المرحلة' };
+    }
+
+    this.stopTimer();
 
     // Pick fair random player among ACTIVE players
     const randomIndex = Math.floor(Math.random() * activePlayers.length);
@@ -374,6 +496,7 @@ class GameState extends EventEmitter {
   // Called when wheel lands (after animation duration e.g. 5-7 seconds)
   landRoulette() {
     if (!this.chosenPlayer) return;
+    if (this.state !== GameStates.SPINNING) return;
 
     this.state = GameStates.SELECTED_PLAYER;
     this.logActivity('PLAYER_TURN_CHOSEN', `🎯 توقفت العجلة على اللاعب ${this.chosenPlayer.nickname} (#${this.chosenPlayer.playerNumber})! حان دوره لاختيار شخص للإقصاء.`);
@@ -454,6 +577,9 @@ class GameState extends EventEmitter {
     if (this.state !== GameStates.SELECTING_TARGET) {
       return { success: false, reason: 'ليست مرحلة اختيار الهدف حالياً' };
     }
+    if (!selectorPlayer) {
+      return { success: false, reason: 'لا يوجد لاعب صاحب دور حالياً' };
+    }
 
     const target = this.getPlayerByNumber(targetNum);
     if (!target) {
@@ -515,28 +641,42 @@ class GameState extends EventEmitter {
   }
 
   handleTargetSelectionTimeout() {
+    if (this.state !== GameStates.SELECTING_TARGET) return;
+
     const behavior = this.settings.timeoutBehavior || 'skip';
     this.logActivity('TARGET_TIMEOUT', `انتهى مؤقت اختيار الهدف دون تحديد رقم صالح. الإجراء: ${behavior}`);
 
     if (behavior === 'skip') {
-      this.state = GameStates.NEXT_ROUND;
+      // تخطي دور اللاعب والانتقال فعلياً إلى الجولة التالية
       this.emit('target_timeout_action', { action: 'skip' });
-      this.emit('state_updated', this.getSnapshot());
+      this.nextRound();
     } else if (behavior === 'respin') {
-      this.state = GameStates.READY;
+      this.stopTimer();
+      this.chosenPlayer = null;
+      this.targetPlayer = null;
+      this.wheelResult = null;
+      this.state = this.getActivePlayers().length >= 2
+        ? GameStates.READY
+        : GameStates.WAITING_FOR_PLAYERS;
       this.emit('target_timeout_action', { action: 'respin' });
+      this.persist();
       this.emit('state_updated', this.getSnapshot());
     } else if (behavior === 'random') {
-      // Pick a random eligible target
+      // اختيار هدف عشوائي مؤهل
+      if (!this.chosenPlayer) {
+        this.nextRound();
+        return;
+      }
       const eligible = this.getActivePlayers().filter(p =>
         p.id !== this.chosenPlayer.id && !p.hasShield && p.status !== 'immune'
       );
       if (eligible.length > 0) {
         const randomTarget = eligible[Math.floor(Math.random() * eligible.length)];
+        this.emit('target_timeout_action', { action: 'random', target: randomTarget });
         this.selectTargetByNumber(randomTarget.playerNumber, this.chosenPlayer);
       } else {
-        this.state = GameStates.NEXT_ROUND;
-        this.emit('state_updated', this.getSnapshot());
+        this.emit('target_timeout_action', { action: 'skip' });
+        this.nextRound();
       }
     }
   }
@@ -575,15 +715,20 @@ class GameState extends EventEmitter {
     // Check if only 1 player remains -> Winner!
     const remaining = this.getActivePlayers();
     if (remaining.length === 1) {
-      setTimeout(() => {
-        this.declareWinner(remaining[0]);
+      if (this._winnerTimeout) clearTimeout(this._winnerTimeout);
+      this._winnerTimeout = setTimeout(() => {
+        this._winnerTimeout = null;
+        // تأكد أن اللاعب ما زال وحيداً (قد يعود لاعب مستبعد خلال المهلة)
+        const remainingNow = this.getActivePlayers();
+        if (remainingNow.length === 1) {
+          this.declareWinner(remainingNow[0]);
+        }
       }, 4000);
     }
   }
 
-  handleDefenseGift({ userId, uniqueId, giftName, diamonds, repeatCount = 1, eventId }) {
-    if (eventId && this.processedEventIds.has(eventId)) return false;
-    if (eventId) this.processedEventIds.add(eventId);
+  handleDefenseGift({ userId, uniqueId, giftId, giftName, diamonds, repeatCount = 1, eventId }) {
+    if (!this.rememberEvent(eventId)) return false;
 
     if (this.state !== GameStates.DEFENDING || !this.targetPlayer) {
       return false;
@@ -598,15 +743,14 @@ class GameState extends EventEmitter {
 
     if (!isTarget) return false;
 
-    // Check gift validity
+    // Check gift validity: يجب أن تكون الهدية هي هدية الدفاع المحددة
     const defenseConf = this.settings.gifts.defense;
     const coinValue = (diamonds || 1) * (repeatCount || 1);
 
-    const matchesName = defenseConf.giftName && giftName &&
-      giftName.toLowerCase().includes(defenseConf.giftName.toLowerCase());
-    const matchesCoins = coinValue >= (defenseConf.minCoins || 1);
-
-    if (!matchesName && !matchesCoins) {
+    if (!this.giftMatchesCategory({ giftId, giftName }, defenseConf)) {
+      return false;
+    }
+    if (coinValue < (defenseConf.minCoins || 1)) {
       return false;
     }
 
@@ -638,9 +782,8 @@ class GameState extends EventEmitter {
   // Rejoin & Help & Shield System (العودة، المساعدة، الحصانة)
   // -------------------------------------------------------------
 
-  handleRejoin({ userId, uniqueId, nickname, profilePictureUrl, coins = 5, eventId }) {
-    if (eventId && this.processedEventIds.has(eventId)) return false;
-    if (eventId) this.processedEventIds.add(eventId);
+  handleRejoin({ userId, uniqueId, nickname, profilePictureUrl, giftId, giftName, coins = 5, eventId }) {
+    if (!this.rememberEvent(eventId)) return false;
 
     const player = this.getPlayerById(userId || uniqueId);
     if (!player || player.status !== 'eliminated') {
@@ -648,6 +791,9 @@ class GameState extends EventEmitter {
     }
 
     const rejoinConf = this.settings.gifts.rejoin;
+    if (!this.giftMatchesCategory({ giftId, giftName }, rejoinConf)) {
+      return false;
+    }
     if (coins < (rejoinConf.minCoins || 5)) {
       return false;
     }
@@ -669,11 +815,13 @@ class GameState extends EventEmitter {
     return true;
   }
 
-  handleHelp({ helperUserId, helperName, targetPlayerNumber, coins = 16, eventId }) {
-    if (eventId && this.processedEventIds.has(eventId)) return false;
-    if (eventId) this.processedEventIds.add(eventId);
+  handleHelp({ helperUserId, helperName, targetPlayerNumber, giftId, giftName, coins = 16, eventId }) {
+    if (!this.rememberEvent(eventId)) return false;
 
     const helpConf = this.settings.gifts.help;
+    if (!this.giftMatchesCategory({ giftId, giftName }, helpConf)) {
+      return false;
+    }
     if (coins < (helpConf.minCoins || 16)) {
       return false;
     }
@@ -711,11 +859,13 @@ class GameState extends EventEmitter {
     return true;
   }
 
-  handleShieldGift({ userId, uniqueId, coins = 30, eventId }) {
-    if (eventId && this.processedEventIds.has(eventId)) return false;
-    if (eventId) this.processedEventIds.add(eventId);
+  handleShieldGift({ userId, uniqueId, giftId, giftName, coins = 30, eventId }) {
+    if (!this.rememberEvent(eventId)) return false;
 
     const shieldConf = this.settings.gifts.shield;
+    if (!this.giftMatchesCategory({ giftId, giftName }, shieldConf)) {
+      return false;
+    }
     if (coins < (shieldConf.minCoins || 30)) {
       return false;
     }
@@ -787,8 +937,13 @@ class GameState extends EventEmitter {
     });
   }
 
-  handleFinalRoundGift({ userId, uniqueId, nickname, coins = 100 }) {
+  handleFinalRoundGift({ userId, uniqueId, nickname, giftId, giftName, coins = 100, eventId }) {
+    if (!this.rememberEvent(eventId)) return false;
     if (this.state !== GameStates.FINAL_ROUND) return false;
+
+    const finalConf = this.settings.gifts.finalRound;
+    if (!this.giftMatchesCategory({ giftId, giftName }, finalConf)) return false;
+    if (coins < (finalConf.minCoins || 100)) return false;
 
     let player = this.getPlayerById(userId || uniqueId);
     if (!player) {
@@ -839,6 +994,11 @@ class GameState extends EventEmitter {
   }
 
   declareWinner(winnerPlayer) {
+    if (!winnerPlayer) return;
+    if (this._winnerTimeout) {
+      clearTimeout(this._winnerTimeout);
+      this._winnerTimeout = null;
+    }
     this.winner = winnerPlayer;
     this.state = GameStates.FINISHED;
     this.stopTimer();
@@ -851,6 +1011,7 @@ class GameState extends EventEmitter {
   }
 
   startWinnerChallenge(challenger) {
+    if (!this.winner || !challenger) return false;
     this.state = GameStates.CHALLENGE;
     this.challenger = challenger;
     const duration = this.settings.timers.challengeDuration || 45;
@@ -886,35 +1047,16 @@ class GameState extends EventEmitter {
 
   updateSettings(newSettings) {
     if (!newSettings || typeof newSettings !== 'object') return;
-    if (newSettings.gifts) {
-      this.settings.gifts = {
-        ...(this.settings.gifts || {}),
-        ...newSettings.gifts
-      };
-      delete newSettings.gifts;
-    }
-    if (newSettings.timers) {
-      this.settings.timers = {
-        ...(this.settings.timers || {}),
-        ...newSettings.timers
-      };
-      delete newSettings.timers;
-    }
-    if (newSettings.wheelConfig) {
-      this.settings.wheelConfig = {
-        ...(this.settings.wheelConfig || {}),
-        ...newSettings.wheelConfig
-      };
-      delete newSettings.wheelConfig;
-    }
-    this.settings = { ...this.settings, ...newSettings };
+    // دمج عميق يحافظ على giftId/giftName عند تعديل minCoins فقط
+    this.settings = this.mergeSettings(this.settings, newSettings);
     this.persist();
-    this.emit('settings_updated', this.settings);
+    this.emit('settings_updated', this.getPublicSettings());
     this.emit('state_updated', this.getSnapshot());
   }
 
   resetGame() {
     this.stopTimer();
+    this.isPaused = false;
     this.state = GameStates.WAITING_FOR_PLAYERS;
     this.roundNumber = 1;
     this.chosenPlayer = null;
@@ -938,7 +1080,7 @@ class GameState extends EventEmitter {
       state: this.state,
       roundNumber: this.roundNumber,
       isPaused: this.isPaused,
-      settings: this.settings,
+      settings: this.getPublicSettings(),
       chosenPlayer: this.chosenPlayer,
       targetPlayer: this.targetPlayer,
       wheelResult: this.wheelResult,

@@ -22,6 +22,7 @@ function createTikFinityRouter(gameState, tiktokConnector) {
 
       // Extract gift
       const gift = payload.gift || data.gift || {};
+      const giftId = data.giftId || data.gift_id || payload.giftId || payload.gift_id || gift.id || gift.giftId || null;
       const giftName = data.giftName || data.gift_name || payload.giftName || payload.gift_name || gift.name || gift.giftName;
       const diamonds = parseInt(data.diamonds || data.coins || data.coinValue || payload.diamonds || payload.coins || payload.coinValue || gift.diamondCount || gift.coins || 1, 10);
       const repeatCount = parseInt(data.repeatCount || data.count || payload.repeatCount || payload.count || gift.repeatCount || 1, 10);
@@ -45,6 +46,7 @@ function createTikFinityRouter(gameState, tiktokConnector) {
           uniqueId,
           nickname,
           profilePictureUrl,
+          giftId,
           giftName: giftName || 'Gift',
           diamonds,
           repeatCount,
