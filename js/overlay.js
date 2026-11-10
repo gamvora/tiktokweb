@@ -213,6 +213,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const setDrawerBgColor2 = document.getElementById('setDrawerBgColor2');
   const setDrawerBgPattern = document.getElementById('setDrawerBgPattern');
 
+  // Live preview of background on change
+  [setDrawerBgType, setDrawerBgColor1, setDrawerBgColor2, setDrawerBgPattern].forEach(el => {
+    if (!el) return;
+    el.addEventListener('change', () => {
+      applyBackground({
+        type: setDrawerBgType?.value || 'gradient',
+        color1: setDrawerBgColor1?.value || '#0a0612',
+        color2: setDrawerBgColor2?.value || '#1a1030',
+        pattern: setDrawerBgPattern?.value || 'none'
+      });
+    });
+  });
+
   // ── State ─────────────────────────────────────────────────
   let currentSnapshot = null;
   let lastVisualState = null;
