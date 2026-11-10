@@ -1072,6 +1072,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Collapsible side panels
+  document.querySelectorAll('.panel-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.target;
+      const panel = document.getElementById(target);
+      if (!panel) return;
+      panel.classList.toggle('collapsed');
+      btn.textContent = panel.classList.contains('collapsed') ? '▶' : '◀';
+    });
+  });
+
   // بدء Socket.IO
   window.tiktokBadgeEl = tiktokBadgeEl;
   window.startDemoMode = startDemoMode;

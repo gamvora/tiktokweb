@@ -47,12 +47,15 @@
     <!-- Main Stage Grid -->
     <main class="main-stage">
       <!-- Right Side: Active Players -->
-      <aside class="side-panel">
+      <aside class="side-panel" id="activePlayersPanel">
         <div class="panel-header">
           <div class="panel-title">
             <span>🛡️ اللاعبون النشطون</span>
           </div>
-          <span id="activeCount" class="panel-count">0</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span id="activeCount" class="panel-count">0</span>
+            <button class="panel-toggle-btn" data-target="activePlayersPanel" title="إخفاء/إظهار">◀</button>
+          </div>
         </div>
         <div id="activePlayersList" class="player-list">
           <!-- Dynamic Active Player Cards -->
@@ -86,12 +89,15 @@
       </section>
 
       <!-- Left Side: Eliminated Players & Gifts Guide Legend -->
-      <aside class="side-panel left-stage-panel">
+      <aside class="side-panel left-stage-panel" id="eliminatedPlayersPanel">
         <div class="panel-header">
           <div class="panel-title">
             <span>☠️ قائمة المستبعدين</span>
           </div>
-          <span id="eliminatedCount" class="panel-count" style="background: rgba(239, 68, 68, 0.25); color: #f87171;">0</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span id="eliminatedCount" class="panel-count" style="background: rgba(239, 68, 68, 0.25); color: #f87171;">0</span>
+            <button class="panel-toggle-btn" data-target="eliminatedPlayersPanel" title="إخفاء/إظهار">◀</button>
+          </div>
         </div>
         <div id="eliminatedPlayersList" class="player-list eliminated-scroll-list">
           <!-- Eliminated Players List -->
