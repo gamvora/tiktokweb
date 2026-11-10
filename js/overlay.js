@@ -208,6 +208,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const giftTickerTrack = document.getElementById('giftTickerTrack');
   const setDrawerStreamerAvatar = document.getElementById('setDrawerStreamerAvatar');
   const setDrawerStreamerName = document.getElementById('setDrawerStreamerName');
+  const setDrawerBgType = document.getElementById('setDrawerBgType');
+  const setDrawerBgColor1 = document.getElementById('setDrawerBgColor1');
+  const setDrawerBgColor2 = document.getElementById('setDrawerBgColor2');
+  const setDrawerBgPattern = document.getElementById('setDrawerBgPattern');
 
   // ── State ─────────────────────────────────────────────────
   let currentSnapshot = null;
@@ -542,6 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('state_updated', (snapshot) => {
       currentSnapshot = snapshot;
       updateGiftTicker();
+      applyBackground(snapshot?.settings?.background);
       applyWheelConfigFromSnapshot();
       renderHeader();
       handleStateVisuals(snapshot);
@@ -942,6 +947,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (wheel && currentSnapshot?.settings?.streamerAvatar) wheel.setCenterImage(currentSnapshot.settings.streamerAvatar);
     renderAll();
     updateGiftTicker();
+    applyBackground(currentSnapshot?.settings?.background);
     updateTikTokBadge({ status: 'disconnected' });
 
     // السجلات المحفوظة
@@ -1152,6 +1158,21 @@ document.addEventListener('DOMContentLoaded', () => {
     updateLegendItem(legendShieldImg, legendShieldText, gifts.shield, 'sunglasses', 'حماية من الاستهداف');
     updateLegendItem(legendRejoinImg, legendRejoinText, gifts.rejoin, 'heart', 'للعودة للروليت');
     updateLegendItem(legendFinalImg, legendFinalText, gifts.finalRound, 'rocket', 'لحسم الفوز');
+  }
+
+  function applyBackground(bg) {
+    if (!bg) return;
+    const c1 = bg.color1 || '#0a0612';
+    const c2 = bg.color2 || '#1a1030';
+    let bgStyle = bg.type === 'solid' ? c1 : `linear-gradient(135deg, ${c1}, ${c2})`;
+    let patternCss = 'none';
+    if (bg.pattern === 'dots') patternCss = 'radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1px)';
+    else if (bg.pattern === 'grid') patternCss = 'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)';
+    document.body.style.backgroundImage = patternCss !== 'none' ? `${patternCss}, ${bgStyle}` : bgStyle;
+    document.body.style.backgroundAttachment = 'fixed';
+    if (bg.pattern === 'dots') document.body.style.backgroundSize = '22px 22px, auto';
+    else if (bg.pattern === 'grid') document.body.style.backgroundSize = '36px 36px, 36px 36px, auto';
+    else document.body.style.backgroundSize = 'auto';
   }
 
   function updateGiftTicker() {
@@ -2055,6 +2076,12 @@ document.addEventListener('DOMContentLoaded', () => {
         timeoutBehavior: setDrawerTimeout?.value || 'skip',
         streamerAvatar: setDrawerStreamerAvatar?.value?.trim() || '',
         streamerName: setDrawerStreamerName?.value?.trim() || '',
+        background: {
+          type: setDrawerBgType?.value || 'gradient',
+          color1: setDrawerBgColor1?.value || '#0a0612',
+          color2: setDrawerBgColor2?.value || '#1a1030',
+          pattern: setDrawerBgPattern?.value || 'none'
+        },
         timers: {
           targetSelectDuration: parseInt(setDrawerTargetSec?.value || '20', 10),
           defenseDuration: parseInt(setDrawerDefSec?.value || '30', 10)
@@ -2063,6 +2090,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (BACKEND_URL || STANDALONE_MODE) {
         await apiPost('/settings', updated);
         if (wheel && updated.streamerAvatar) wheel.setCenterImage(updated.streamerAvatar);
+        applyBackground(updated.background);
       } else {
         if (currentSnapshot?.settings) Object.assign(currentSnapshot.settings, updated);
         if (bc) bc.postMessage({ type: 'settings_updated', settings: currentSnapshot?.settings });
@@ -2081,6 +2109,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (setDrawerDefSec) setDrawerDefSec.value = s.timers?.defenseDuration || 30;
     if (setDrawerStreamerAvatar) setDrawerStreamerAvatar.value = s.streamerAvatar || '';
     if (setDrawerStreamerName) setDrawerStreamerName.value = s.streamerName || '';
+    const bg = s.background || {};
+    if (setDrawerBgType) setDrawerBgType.value = bg.type || 'gradient';
+    if (setDrawerBgColor1) setDrawerBgColor1.value = bg.color1 || '#0a0612';
+    if (setDrawerBgColor2) setDrawerBgColor2.value = bg.color2 || '#1a1030';
+    if (setDrawerBgPattern) setDrawerBgPattern.value = bg.pattern || 'none';
   }
 
   // Drawer Logs

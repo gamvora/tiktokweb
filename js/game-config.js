@@ -39,6 +39,14 @@
     // Streamer TikTok Live username
     tiktokUsername: '',
 
+    // Background customization
+    background: {
+      type: 'gradient', // 'gradient' | 'solid' | 'pattern'
+      color1: '#0a0612',
+      color2: '#1a1030',
+      pattern: 'none' // 'none' | 'dots' | 'grid' | 'waves'
+    },
+
     // صورة صاحب البث (تظهر في مركز العجلة)
     streamerAvatar: '',
     streamerName: '',
