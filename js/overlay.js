@@ -1209,8 +1209,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('');
     // Build a set wide enough to fill the screen, then duplicate once for seamless loop
     let set = oneSet;
-    // repeat until set is long (ensures no gaps on wide screens)
-    for (let i = 0; i < 12; i++) set += oneSet;
+    for (let i = 0; i < 3; i++) set += oneSet;
     giftTickerTrack.innerHTML = set + set;
   }
 
