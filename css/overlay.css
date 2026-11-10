@@ -1772,7 +1772,7 @@ body {
   white-space: nowrap;
   width: max-content;
   direction: ltr;
-  animation: ticker-scroll 120s linear infinite;
+  animation: ticker-scroll 180s linear infinite;
   padding: 0 20px;
 }
 .ticker-item {
