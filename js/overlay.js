@@ -1317,7 +1317,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setBanner(`في انتظار اللاعبين... اكتب [${snapshot.settings?.joinKeyword || 'تم'}] في الشات للمشاركة!`);
         break;
       case 'READY':
-        setBanner(`اللعبة جاهزة! (${allPlayers.filter(p => p.status === 'active' || p.status === 'immune').length} لاعبين). اضغط تدوير الروليت.`);
         break;
       case 'SPINNING':
         setBanner('🎡 العجلة تدور الآن... من سيكون صاحب القرار؟');
