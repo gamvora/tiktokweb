@@ -778,7 +778,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnMainSpinRoulette) {
       btnMainSpinRoulette.disabled = false;
     }
-    setBanner('⚡ وضع Demo - اضغط [تدوير العجلة] لتجربة اللعبة كاملاً!');
   }
 
   // ══════════════════════════════════════════════════════════
@@ -1015,7 +1014,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         localEngine.logActivity('DEMO_MODE', 'تم تشغيل وضع التجربة بدون بث مباشر');
         localEngine.emit('state_updated', localEngine.getSnapshot());
-        setBanner('⚡ وضع التجربة — اضغط [تدوير الروليت] لتجربة اللعبة');
       });
     }
     if (btnCopyObsLink) {
