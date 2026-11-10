@@ -1753,7 +1753,7 @@ body {
 .gift-ticker {
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 100;
   width: min(900px, 92vw);
   margin: 8px auto;
   border-radius: 14px;
@@ -1793,8 +1793,8 @@ body {
 .ticker-coins { color: #34d399; font-weight: 700; }
 .ticker-desc { color: #94a3b8; }
 @keyframes ticker-scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(50%); }
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
 }
 /* RTL: move right-to-left visually; ticker-scroll uses translateX which in RTL still works */
 
