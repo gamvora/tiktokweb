@@ -1199,7 +1199,7 @@ document.addEventListener('DOMContentLoaded', () => {
       { key: 'finalRound', label: '🚀 حسم الجولة', desc: 'حسم الجولة النهائية' },
       { key: 'winnerChallenge', label: '👑 تحدي الفائز', desc: 'تحدي البطل' }
     ];
-    const items = cats.map(c => {
+    const oneSet = cats.map(c => {
       const conf = gifts[c.key];
       const info = getGiftInfo(conf?.giftId || conf?.giftName || 'rose');
       const img = info.image;
@@ -1207,8 +1207,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const coins = conf?.minCoins || info.coins || 1;
       return `<div class="ticker-item"><img src="${img}" alt=""><span class="ticker-name">${name}</span><span class="ticker-coins">${coins} عملة</span><span class="ticker-desc">${c.label} — ${c.desc}</span></div>`;
     }).join('');
-    // duplicate for seamless loop
-    giftTickerTrack.innerHTML = items + items + items + items;
+    // Build a set wide enough to fill the screen, then duplicate once for seamless loop
+    let set = oneSet;
+    // repeat until set is long (ensures no gaps on wide screens)
+    for (let i = 0; i < 12; i++) set += oneSet;
+    giftTickerTrack.innerHTML = set + set;
   }
 
   function updateSpinButtonState() {
