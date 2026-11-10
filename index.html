@@ -61,20 +61,6 @@
 
       <!-- Center Arena: Roulette Wheel + Prominent Spin Button -->
       <section class="center-arena">
-        <!-- Prominent Join Instructions Card Before Game Starts -->
-        <div id="joinInstructionsCard" class="join-instructions-card">
-          <div class="join-card-icon">📢</div>
-          <div class="join-card-body">
-            <div class="join-card-headline">طريقة الدخول والمشاركة في الروليت:</div>
-            <div class="join-card-action">
-              اكتب كلمة <span id="joinKeywordHighlight" class="join-kw-badge">تم</span> في شات البث الآن!
-            </div>
-          </div>
-          <div class="join-card-subtext">
-            <span>✨ تدخل المنافسة وتظهر صورتك واسمك ورقمك على العجلة تلقائياً</span>
-          </div>
-        </div>
-
         <div class="wheel-container">
           <canvas id="rouletteCanvas" width="600" height="600"></canvas>
         </div>
@@ -86,6 +72,11 @@
             <span class="spin-text">تدوير الروليت الآن (Start Roulette)</span>
             <span class="spin-glow"></span>
           </button>
+        </div>
+
+        <div id="joinInstructionsCard" class="join-compact-box">
+          <span class="join-compact-icon">✍️</span>
+          <span>اكتب <span id="joinKeywordHighlight" class="join-kw-badge">تم</span> للدخول (حسب الكلمة في الإعدادات)</span>
         </div>
 
         <div class="action-banner">
