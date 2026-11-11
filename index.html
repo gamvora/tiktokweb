@@ -621,6 +621,31 @@
     </div>
   </div>
 
+  <!-- Mode Chooser: 2D / 3D (يظهر أول مرة عند الدخول) -->
+  <div id="modeChooserModal" class="mode-chooser-modal">
+    <div class="mode-chooser">
+      <div class="mode-chooser-logo">🎡</div>
+      <h2>اختر نمط اللعبة</h2>
+      <p>نفس اللعبة والإعدادات — اختر الشاشة التي تريدها لبثك:</p>
+      <div class="mode-cards">
+        <button id="btnChoose2D" class="mode-card" type="button">
+          <span class="mode-icon">🎡</span>
+          <span class="mode-name">لعبة 2D الكلاسيكية</span>
+          <span class="mode-desc">عجلة الروليت الأصلية مع كل الأنميشنات والشاشات المألوفة</span>
+        </button>
+        <button id="btnChoose3D" class="mode-card mode-card-3d" type="button">
+          <span class="mode-icon">🏟️</span>
+          <span class="mode-name">لعبة 3D الواقعية</span>
+          <span class="mode-desc">استاد حقيقي بجمهور متفاعل وعجلة دوارة وسهرات كوميدية ثلاثية الأبعاد</span>
+          <span class="mode-tag">جديد ✨</span>
+        </button>
+      </div>
+      <div class="mode-chooser-foot">
+        <button id="btnChooseLater" type="button">متابعة بنمط 2D هذه المرة فقط (بدون حفظ الاختيار)</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Welcome / Connect Modal -->
   <div id="welcomeModal" class="overlay-modal welcome-modal">
     <div class="welcome-content">
@@ -659,6 +684,7 @@
     }
   </script>
   <script src="js/backend.js"></script>
+  <script src="js/entry.js"></script>
   <script src="js/game-config.js"></script>
   <script src="js/game-engine.js"></script>
   <script src="js/tiktok-live.js"></script>

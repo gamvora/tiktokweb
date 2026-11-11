@@ -27,6 +27,7 @@ const server = http.createServer((req, res) => {
   // rewrites
   if (url.pathname === '/overlay') filePath = path.join(root, 'index.html');
   if (url.pathname === '/admin') filePath = path.join(root, 'admin.html');
+  if (url.pathname === '/game3d') filePath = path.join(root, 'game3d.html');
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
@@ -36,6 +37,7 @@ const server = http.createServer((req, res) => {
     }
     const ext = path.extname(filePath).toLowerCase();
     res.setHeader('Content-Type', mime[ext] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.end(data);
   });
 });

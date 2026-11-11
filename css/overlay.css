@@ -2620,6 +2620,101 @@ body {
 
 
 /* ============================================================
+   MODE CHOOSER — شاشة اختيار نمط اللعبة (2D / 3D)
+   ============================================================ */
+.mode-chooser-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 3, 12, 0.88);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.mode-chooser-modal.active { opacity: 1; pointer-events: auto; }
+.mode-chooser {
+  background: linear-gradient(150deg, #191233, #0c0920);
+  border: 2px solid rgba(251, 191, 36, 0.55);
+  border-radius: 26px;
+  padding: 34px 38px 28px;
+  max-width: 640px;
+  width: min(92vw, 640px);
+  text-align: center;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.85), 0 0 60px rgba(124, 58, 237, 0.35);
+  transform: translateY(26px) scale(0.94);
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.mode-chooser-modal.active .mode-chooser { transform: translateY(0) scale(1); }
+.mode-chooser-logo { font-size: 52px; line-height: 1; }
+.mode-chooser h2 {
+  margin: 10px 0 6px;
+  font-size: 26px;
+  font-weight: 900;
+  color: #fbbf24;
+}
+.mode-chooser p { margin: 0 0 22px; color: #cbd5e1; font-size: 14px; }
+.mode-cards { display: flex; gap: 14px; flex-wrap: wrap; }
+.mode-card {
+  flex: 1;
+  min-width: 220px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  border-radius: 20px;
+  padding: 22px 16px 18px;
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.25s, box-shadow 0.25s;
+  font-family: inherit;
+}
+.mode-card:hover {
+  transform: translateY(-6px) scale(1.03);
+  border-color: #fbbf24;
+  box-shadow: 0 14px 44px rgba(251, 191, 36, 0.25);
+}
+.mode-card .mode-icon { font-size: 46px; line-height: 1; }
+.mode-card .mode-name {
+  display: block;
+  margin-top: 10px;
+  font-size: 19px;
+  font-weight: 900;
+  color: #fff;
+}
+.mode-card .mode-desc {
+  display: block;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: #94a3b8;
+  line-height: 1.6;
+}
+.mode-card.mode-card-3d { border-color: rgba(124, 58, 237, 0.5); background: rgba(124, 58, 237, 0.1); }
+.mode-card.mode-card-3d:hover { border-color: #a78bfa; box-shadow: 0 14px 44px rgba(124, 58, 237, 0.4); }
+.mode-card .mode-tag {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #0f172a;
+  background: #a78bfa;
+  border-radius: 20px;
+  padding: 3px 12px;
+}
+.mode-chooser-foot { margin-top: 18px; }
+.mode-chooser-foot button {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-decoration: underline;
+  font-family: inherit;
+}
+.mode-chooser-foot button:hover { color: #94a3b8; }
+
+
+/* ============================================================
    DESIGN SYSTEM v4 — elimination & winner modal cinematics
    ============================================================ */
 

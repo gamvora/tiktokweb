@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  const wheel = new RouletteWheel('rouletteCanvas');
+  const wheel = new (window.__RouletteWheelClass || RouletteWheel)('rouletteCanvas');
 
   // ── DOM Elements ─────────────────────────────────────────
   const activePlayersList = document.getElementById('activePlayersList');
@@ -538,6 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('round_advanced', ({ roundNumber } = {}) => {
       hideAllModals();
+      if (window.__fx3d) window.__fx3d('round_advanced', { roundNumber });
       if (currentSnapshot) {
         currentSnapshot.roundNumber = roundNumber || ((currentSnapshot.roundNumber || 1) + 1);
         currentSnapshot.chosenPlayer = null;
@@ -551,6 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('target_timeout_action', (payload = {}) => {
       if (targetSelectionModal) targetSelectionModal.classList.remove('active');
       if (turnModal) turnModal.classList.remove('active');
+      if (window.__fx3d) window.__fx3d('target_timeout_action', payload);
       if (payload.action === 'skip') {
         setBanner('⏭️ انتهى وقت اختيار الهدف — تخطي الدور');
       } else if (payload.action === 'respin') {
@@ -570,18 +572,21 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.soundEngine) window.soundEngine.savedFanfare();
       hideAllModals();
       showShieldAura(player, rounds);
+      if (window.__fx3d) window.__fx3d('player_shield_activated', { player, rounds });
     });
 
     socket.on('player_shield_consumed', ({ player } = {}) => {
       if (window.soundEngine) window.soundEngine.savedFanfare();
       hideAllModals();
       showShieldBreak(player);
+      if (window.__fx3d) window.__fx3d('player_shield_consumed', { player });
     });
 
     socket.on('final_round_started', ({ duration } = {}) => {
       hideAllModals();
       if (window.celebration3D) window.celebration3D.start('quick'); // short 3D burst
       showFinalRoundAnnounce(duration || 20);
+      if (window.__fx3d) window.__fx3d('final_round_started', { duration });
       const fConf = currentSnapshot?.settings?.gifts?.finalRound;
       const fInfo = getGiftInfo(fConf?.giftId || fConf?.giftName || 'rocket');
       setBanner(`🏆 بدأ الحسم النهائي! أرسل [${fConf?.giftName || fInfo.nameAr}] (${fConf?.minCoins || fInfo.coins || 100} عملة) خلال ${duration || 20} ثانية`);
@@ -589,6 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('final_round_score_updated', ({ player, score } = {}) => {
       setBanner(`🏆 ${player?.nickname || 'لاعب'} في الصدارة برصيد ${score || 0} عملة!`);
+      if (window.__fx3d) window.__fx3d('final_round_score_updated', { player, score });
     });
 
     socket.on('winner_challenge_started', ({ challenger, winner, duration } = {}) => {
@@ -647,6 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
       hideAllModals();
       if (window.soundEngine) window.soundEngine.siren();
       showConfrontationModal(selector, target);
+      if (window.__fx3d) window.__fx3d('target_selected', { selector, target });
     });
 
     socket.on('timer_tick', ({ remaining, type }) => {
@@ -675,6 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
       hideAllModals();
       if (window.soundEngine) window.soundEngine.savedFanfare();
       showDefenseTaunt(player, giftName, coins);
+      if (window.__fx3d) window.__fx3d('player_saved', { player, giftName, coins });
     });
 
     socket.on('player_eliminated', ({ player, by }) => {
@@ -682,18 +690,21 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.soundEngine) window.soundEngine.eliminatedGong();
       showKickAnimation(player, by);
       showEliminationModal(player, by);
+      if (window.__fx3d) window.__fx3d('player_eliminated', { player, by });
     });
 
     socket.on('player_rejoined', ({ player, coins }) => {
       if (window.soundEngine) window.soundEngine.rejoin();
       hideAllModals();
       showRejoinAnimation(player, coins);
+      if (window.__fx3d) window.__fx3d('player_rejoined', { player, coins });
     });
 
     socket.on('player_helped', ({ helperName, target, coins }) => {
       if (window.soundEngine) window.soundEngine.rejoin();
       hideAllModals();
       showRejoinAnimation(target, coins, helperName);
+      if (window.__fx3d) window.__fx3d('player_helped', { helperName, target, coins });
     });
 
     socket.on('winner_declared', ({ winner }) => {
@@ -701,6 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.soundEngine) window.soundEngine.victory();
       if (window.celebration3D) window.celebration3D.start('win'); // Three.js 3D celebration
       showWinnerModal(winner);
+      if (window.__fx3d) window.__fx3d('winner_declared', { winner });
       const timerEl = document.getElementById('winnerChallengeTimer');
       let remaining = 20;
       if (timerEl) timerEl.textContent = remaining;
@@ -721,6 +733,7 @@ document.addEventListener('DOMContentLoaded', () => {
       hideAllModals();
       setBanner('تمت إعادة تعيين اللعبة. في انتظار الانضمام...');
       updateSpinButtonState();
+      if (window.__fx3d) window.__fx3d('game_reset', {});
     });
 
     socket.on('activity_log', (entry) => appendDrawerLog(entry));
@@ -843,7 +856,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateObsLink(username) {
     if (!obsLinkInput) return;
-    const url = `${location.origin}/overlay?user=${encodeURIComponent(username || '')}`;
+    const page = window.__IS_3D ? 'game3d.html' : 'overlay';
+    const url = `${location.origin}/${page}?user=${encodeURIComponent(username || '')}`;
     obsLinkInput.value = url;
     if (obsLinkBox) obsLinkBox.style.display = 'block';
   }
@@ -971,6 +985,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     liveClient.on('gift', (gift) => {
       try { localEngine.dispatchGift(gift); } catch (e) { console.error('[Overlay] gift:', e); }
+      if (window.__fx3d) {
+        const gPlayer = (localEngine.players || []).find(p =>
+          (gift.uniqueId && p.uniqueId === gift.uniqueId) || (gift.userId && p.userId === gift.userId));
+        window.__fx3d('gift', gPlayer || null);
+      }
     });
 
     liveClient.on('room_info', (info) => {
