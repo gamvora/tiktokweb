@@ -1751,87 +1751,268 @@ body {
 }
 /* RTL: move right-to-left visually; ticker-scroll uses translateX which in RTL still works */
 
-/* Kick animation */
+/* ============================================================
+   KICK ANIMATION v2 — comic cinematic elimination
+   (transform/opacity only for GPU performance)
+   ============================================================ */
 .kick-animation-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 950;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  animation: kick-fade 1.8s ease-out forwards;
+  background: radial-gradient(circle at 50% 50%, rgba(239, 68, 68, 0.18), transparent 62%);
+  animation: kick-fade 2.8s ease-out forwards;
 }
+.kick-animation-overlay.shaking { animation: kick-fade 2.8s ease-out forwards, screen-shake 0.35s ease-in-out 0.95s 3; }
 .kick-scene {
   position: relative;
-  width: 320px;
-  height: 200px;
+  width: min(92vw, 560px);
+  height: 300px;
+  animation: scene-pop 0.4s var(--ease-spring);
 }
-.kick-kicker {
-  position: absolute;
-  left: 10px;
-  top: 60px;
-  width: 70px;
-  height: 70px;
-  border-radius: 50%;
-  border: 3px solid #fbbf24;
-  object-fit: cover;
-  animation: kick-kicker 0.6s ease-in-out;
-}
-.kick-boot {
-  position: absolute;
-  left: 95px;
-  top: 85px;
-  font-size: 42px;
-  animation: kick-boot 0.6s ease-in-out;
-}
-.kick-victim {
-  position: absolute;
-  left: 150px;
-  top: 60px;
-  width: 70px;
-  height: 70px;
-  border-radius: 50%;
-  border: 3px solid #ef4444;
-  object-fit: cover;
-  animation: kick-victim 1.2s ease-out forwards;
-}
-.kick-text {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 18px;
-  font-weight: 900;
-  color: #fff;
-  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
-  animation: kick-text 1.8s ease-out;
-}
-@keyframes kick-kicker {
-  0% { transform: translateX(0); }
-  50% { transform: translateX(20px) rotate(-15deg); }
-  100% { transform: translateX(0); }
-}
-@keyframes kick-boot {
-  0% { transform: translateX(0) rotate(0); opacity: 1; }
-  60% { transform: translateX(60px) rotate(45deg); opacity: 1; }
-  100% { transform: translateX(60px) rotate(45deg); opacity: 0; }
-}
-@keyframes kick-victim {
-  0% { transform: translateX(0) rotate(0); opacity: 1; }
-  30% { transform: translateX(20px) rotate(10deg); }
-  100% { transform: translateX(260px) rotate(720deg); opacity: 0; }
-}
-@keyframes kick-text {
-  0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
-  30% { opacity: 1; transform: translateX(-50%) translateY(0); }
-  80% { opacity: 1; }
-  100% { opacity: 0; }
+@keyframes scene-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
 @keyframes kick-fade {
   0% { opacity: 1; }
-  80% { opacity: 1; }
+  82% { opacity: 1; }
   100% { opacity: 0; }
+}
+@keyframes screen-shake {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-7px, 4px); }
+  50% { transform: translate(6px, -5px); }
+  75% { transform: translate(-4px, 2px); }
+}
+
+/* The decision-maker runs in from the right, then victory-bounces */
+.kick-kicker {
+  position: absolute; right: 8px; top: 70px;
+  width: 84px; height: 84px; border-radius: 50%;
+  border: 3px solid #fbbf24; object-fit: cover; z-index: 3;
+  box-shadow: var(--shadow-glow-gold);
+  animation: kicker-run 0.55s var(--ease-out) both, kicker-victory 0.55s ease-in-out 1.25s 2;
+}
+@keyframes kicker-run {
+  0% { transform: translateX(-170px) scale(0.7); opacity: 0; }
+  100% { transform: translateX(0) scale(1); opacity: 1; }
+}
+@keyframes kicker-victory {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+
+/* The leg winds up, then snaps forward at impact */
+.kick-leg {
+  position: absolute; right: 56px; top: 92px; font-size: 76px; z-index: 4;
+  transform-origin: 80% 18%;
+  animation: leg-windup 0.45s ease-in 0.55s both, leg-kick 0.16s cubic-bezier(0.2, 0, 0.1, 1) 1.0s both;
+}
+@keyframes leg-windup {
+  0% { transform: rotate(-95deg) translateX(-44px); opacity: 0; }
+  100% { transform: rotate(-95deg) translateX(0); opacity: 1; }
+}
+@keyframes leg-kick {
+  0% { transform: rotate(-95deg); }
+  60% { transform: rotate(28deg) scale(1.16); }
+  100% { transform: rotate(16deg); }
+}
+
+/* The boot connects */
+.kick-boot {
+  position: absolute; right: 36px; top: 148px; font-size: 56px; z-index: 5;
+  animation: boot-hit 0.16s cubic-bezier(0.2, 0, 0.1, 1) 1.0s both, boot-wiggle 0.4s ease-in-out 1.25s 2;
+}
+@keyframes boot-hit {
+  0% { transform: translate(100px, -70px) rotate(-55deg); }
+  100% { transform: translate(-8px, 10px) rotate(16deg); }
+}
+@keyframes boot-wiggle {
+  0%, 100% { transform: translate(-8px, 10px) rotate(16deg); }
+  50% { transform: translate(-4px, 2px) rotate(30deg); }
+}
+
+/* The victim trembles, then flies away spinning in an arc */
+.kick-victim {
+  position: absolute; left: 64px; top: 64px;
+  width: 92px; height: 92px; border-radius: 50%;
+  border: 3px solid #ef4444; object-fit: cover; z-index: 2;
+  animation: victim-scared 0.55s ease-in-out 0.45s both, victim-fly 1.5s cubic-bezier(0.25, 0.6, 0.35, 1) 1.06s forwards;
+}
+@keyframes victim-scared {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  25% { transform: translateX(-9px) rotate(-6deg); }
+  75% { transform: translateX(9px) rotate(6deg); }
+}
+@keyframes victim-fly {
+  0% { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; }
+  12% { transform: translate(-44px, -74px) rotate(60deg) scale(1.1); }
+  45% { transform: translate(-260px, -150px) rotate(330deg) scale(0.85); }
+  100% { transform: translate(-96vw, -30vh) rotate(780deg) scale(0.22); opacity: 0; }
+}
+
+/* Comic impact burst */
+.kick-impact {
+  position: absolute; left: 128px; top: 56px; font-size: 88px; z-index: 6; opacity: 0;
+  animation: impact-burst 0.5s var(--ease-out) 1.02s forwards;
+}
+@keyframes impact-burst {
+  0% { opacity: 0; transform: scale(0.2) rotate(-30deg); }
+  35% { opacity: 1; transform: scale(1.35) rotate(8deg); }
+  100% { opacity: 0; transform: scale(1.7) rotate(0); }
+}
+
+/* Scattered stars */
+.kick-stars { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+.kick-stars span { position: absolute; opacity: 0; animation: star-fly 0.9s ease-out forwards; }
+.kick-stars span:nth-child(1) { left: 8px;  top: 150px; font-size: 30px; --sx: -100px; --sy: -90px; animation-delay: 1.05s; }
+.kick-stars span:nth-child(2) { left: 150px; top: 60px;  font-size: 24px; --sx: 70px;   --sy: -100px; animation-delay: 1.1s; }
+.kick-stars span:nth-child(3) { left: 110px; top: 170px; font-size: 26px; --sx: -70px;  --sy: 60px;  animation-delay: 1.15s; }
+.kick-stars span:nth-child(4) { left: 40px;  top: 40px;  font-size: 22px; --sx: -40px;  --sy: -70px; animation-delay: 1.2s; }
+.kick-stars span:nth-child(5) { left: 180px; top: 130px; font-size: 28px; --sx: 100px;  --sy: 30px;  animation-delay: 1.18s; }
+@keyframes star-fly {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4) rotate(0); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--sx, -80px), var(--sy, -70px)) scale(1.2) rotate(220deg); }
+}
+
+/* Dust puffs where the victim used to be */
+.kick-dust { position: absolute; left: 40px; top: 128px; font-size: 44px; opacity: 0; z-index: 1; animation: dust-puff 1.1s ease-out 1.2s forwards; }
+.kick-dust.d2 { left: 14px; top: 150px; font-size: 34px; animation-delay: 1.38s; }
+@keyframes dust-puff {
+  0% { opacity: 0; transform: translateX(0) scale(0.5); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateX(-130px) scale(1.6); }
+}
+
+/* Funny caption pops after the kick */
+.kick-text {
+  position: absolute; bottom: 6px; left: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(15px, 3vw, 23px); font-weight: 900; color: #fff;
+  text-shadow: 0 3px 10px rgba(0, 0, 0, 0.85);
+  background: rgba(239, 68, 68, 0.22);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  padding: 8px 20px; border-radius: var(--radius-pill);
+  white-space: nowrap; max-width: 94vw; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; animation: text-pop 0.45s var(--ease-spring) 1.05s forwards;
+}
+.kick-sub {
+  position: absolute; bottom: 58px; left: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(12px, 2.4vw, 16px); font-weight: 800; color: #fca5a5;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  white-space: nowrap; max-width: 92vw; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; animation: text-pop 0.45s var(--ease-spring) 1.3s forwards;
+}
+@keyframes text-pop {
+  0% { opacity: 0; transform: translateX(-50%) translateY(26px) scale(0.7); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+/* ============================================================
+   DEFENSE TAUNT — the saved player blocks the kick and gloats
+   ============================================================ */
+.defense-taunt-overlay {
+  position: fixed; inset: 0; z-index: 945;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 45%, rgba(16, 185, 129, 0.16), transparent 62%);
+  animation: kick-fade 3s ease-out forwards;
+}
+.dt-scene {
+  position: relative;
+  width: min(92vw, 520px); height: 270px;
+  animation: scene-pop 0.4s var(--ease-spring);
+}
+
+/* Defender pops in, then flexes victoriously */
+.dt-defender {
+  position: absolute; right: 30px; top: 62px;
+  width: 96px; height: 96px; border-radius: 50%;
+  border: 3px solid #10b981; object-fit: cover; z-index: 3;
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.5);
+  animation: defender-pop 0.5s var(--ease-spring) both, defender-flex 0.5s ease-in-out 1.55s 3;
+}
+@keyframes defender-pop {
+  0% { transform: scale(0.3) translateY(34px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+@keyframes defender-flex {
+  0%, 100% { transform: scale(1) rotate(0); }
+  40% { transform: scale(1.12) rotate(-3deg); }
+}
+
+/* The shield snaps up to block, then gloats */
+.dt-shield {
+  position: absolute; right: 8px; top: 34px; font-size: 62px; z-index: 4;
+  transform-origin: 60% 90%;
+  animation: shield-block 0.3s cubic-bezier(0.2, 0, 0.1, 1) 0.85s both, shield-gloat 0.6s ease-in-out 1.3s 3;
+}
+@keyframes shield-block {
+  0% { transform: rotate(-70deg) scale(0.4); opacity: 0; }
+  100% { transform: rotate(14deg) scale(1.18); opacity: 1; }
+}
+@keyframes shield-gloat {
+  0%, 100% { transform: rotate(14deg) scale(1.18); }
+  50% { transform: rotate(-12deg) scale(1.28); }
+}
+
+/* A shoe flies at the defender... and rebounds spinning */
+.dt-shoe {
+  position: absolute; left: 6px; top: 100px; font-size: 66px; z-index: 2;
+  animation: shoe-attack 0.5s cubic-bezier(0.3, 0, 0.2, 1) 0.4s both, shoe-rebound 1.2s cubic-bezier(0.2, 0.6, 0.3, 1) 0.95s forwards;
+}
+@keyframes shoe-attack {
+  0% { transform: translateX(-32vw) rotate(-35deg); opacity: 0; }
+  100% { transform: translateX(0) rotate(0); opacity: 1; }
+}
+@keyframes shoe-rebound {
+  0% { transform: translateX(0) rotate(0); opacity: 1; }
+  20% { transform: translateX(30px) rotate(-20deg) scale(1.06); }
+  100% { transform: translateX(-92vw) rotate(-760deg) scale(0.28); opacity: 0; }
+}
+
+/* Spark at the moment of the block */
+.dt-spark {
+  position: absolute; right: 36px; top: 30px; font-size: 50px; z-index: 5; opacity: 0;
+  animation: impact-burst 0.45s var(--ease-out) 0.9s forwards;
+}
+
+/* Mocking speech bubble */
+.dt-bubble {
+  position: absolute; left: 0; top: 4px;
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.55);
+  color: #fff; font-weight: 900; font-size: clamp(14px, 2.6vw, 20px);
+  padding: 8px 16px; border-radius: var(--radius-pill);
+  white-space: nowrap; max-width: 60vw; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; animation: dt-pop 0.4s var(--ease-spring) 1.25s forwards;
+}
+.dt-bubble-tail { position: absolute; left: 46px; top: 52px; font-size: 26px; color: rgba(16,185,129,0.75); opacity: 0; animation: dt-pop 0.3s ease-out 1.4s forwards; }
+@keyframes dt-pop {
+  0% { opacity: 0; transform: translateY(18px) scale(0.7); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Save info bar */
+.dt-info {
+  position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: #d1fae5; font-weight: 800; font-size: clamp(12px, 2.4vw, 16px);
+  padding: 8px 18px; border-radius: var(--radius-pill);
+  white-space: nowrap; max-width: 92vw; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; animation: text-pop 0.4s var(--ease-spring) 1.6s forwards;
+}
+
+@media (max-width: 640px) {
+  .kick-scene { transform: scale(0.74); transform-origin: center; }
+  .dt-scene { transform: scale(0.8); transform-origin: center; }
 }
 
 /* Mobile responsiveness */
@@ -2074,4 +2255,40 @@ body {
     max-height: none;
   }
   .side-panel .panel-header { padding: 10px 14px; }
+}
+
+/* ============================================================
+   DESIGN SYSTEM v3 — mobile-first refinements + stage depth
+   ============================================================ */
+
+/* Static glow ring behind the wheel (no animation cost) */
+.wheel-container::before {
+  content: '';
+  position: absolute;
+  inset: -16px;
+  border-radius: 50%;
+  background: radial-gradient(circle, transparent 58%, rgba(245, 179, 1, 0.14) 66%, transparent 76%);
+  pointer-events: none;
+}
+
+@media (max-width: 1024px) {
+  /* Player lists become horizontal story-strips (thumb-friendly) */
+  .side-panel .player-list {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    align-items: stretch;
+  }
+  .side-panel .player-card { min-width: 158px; flex-shrink: 0; }
+  .action-banner { white-space: normal; text-align: center; }
+  .badge { padding: 5px 10px; font-size: 11px; }
+}
+
+@media (max-width: 640px) {
+  .brand-logo { font-size: 26px; }
+  .brand-title { font-size: 17px; }
+  .btn-admin-gear span:last-child { display: none; } /* icon-only gear button */
+  .header-btn { padding: 8px 10px; }
+  .main-spin-button { width: 100%; justify-content: center; }
+  .wheel-actions { padding: 0 8px; }
 }

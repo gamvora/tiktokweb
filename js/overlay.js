@@ -605,6 +605,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('final_round_started', ({ duration } = {}) => {
       hideAllModals();
+      if (window.celebration3D) window.celebration3D.start('quick'); // short 3D burst
       setBanner(`🏆 بدأت مرحلة الحسم النهائي! أرسل الهدية المطلوبة (${duration || 60} ثانية)`);
     });
 
@@ -695,9 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('player_saved', ({ player, giftName, coins }) => {
       hideAllModals();
       if (window.soundEngine) window.soundEngine.savedFanfare();
-      showResultModal('🛡️ تم إنقاذ اللاعب!',
-        `نجح ${player.nickname} في الدفاع عن نفسه بـ [${giftName}] (${coins} عملة)!`, '🛡️', '#10b981');
-      setTimeout(() => hideAllModals(), 4000);
+      showDefenseTaunt(player, giftName, coins);
     });
 
     socket.on('player_eliminated', ({ player, by }) => {
@@ -724,6 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('winner_declared', ({ winner }) => {
       hideAllModals();
       if (window.soundEngine) window.soundEngine.victory();
+      if (window.celebration3D) window.celebration3D.start('win'); // Three.js 3D celebration
       showWinnerModal(winner);
       const timerEl = document.getElementById('winnerChallengeTimer');
       let remaining = 30;
@@ -1582,20 +1582,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function showKickAnimation(player, by) {
     if (!player) return;
+    const avatar = (p) => p.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.playerNumber}`;
+    const kicker = by ? avatar(by) : '';
+    const victim = avatar(player);
+    const lines = [
+      '🦵 رفسة طيارة... بالعكس، طيران مجاني!',
+      '😂 طار من اللعبة بسرعة الضوء!',
+      '💨 باي باي... نشوفك الجولة الجاية!',
+      '🥁 آخر صورة له قبل الإقلاع...',
+      '😬 هذا اللي يصير لما تختار الشخص الغلط!',
+      '🛫 رحلة ذهاب بدون عودة — بوينغ!'
+    ];
+    const line = lines[Math.floor(Math.random() * lines.length)];
     const container = document.createElement('div');
-    container.className = 'kick-animation-overlay';
-    const kicker = by ? (by.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${by.playerNumber}`) : '';
-    const victim = player.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${player.playerNumber}`;
+    container.className = 'kick-animation-overlay shaking';
     container.innerHTML = `
       <div class="kick-scene">
         ${kicker ? `<img class="kick-kicker" src="${kicker}" alt="">` : ''}
+        <div class="kick-leg">🦵</div>
         <div class="kick-boot">👟</div>
         <img class="kick-victim" src="${victim}" alt="">
-        <div class="kick-text">💥 ${player.nickname} تم إقصاؤه!</div>
+        <div class="kick-impact">💥</div>
+        <div class="kick-stars"><span>⭐</span><span>💫</span><span>✨</span><span>⭐</span><span>💥</span></div>
+        <div class="kick-dust">💨</div>
+        <div class="kick-dust d2">💨</div>
+        <div class="kick-sub">🦵 ${by ? by.nickname : 'صاحب القرار'} ركل ${player.nickname} خارج اللعبة!</div>
+        <div class="kick-text">${line}</div>
       </div>`;
     document.body.appendChild(container);
-    setTimeout(() => { container.classList.add('kick-out'); }, 10);
-    setTimeout(() => { container.remove(); }, 1800);
+    setTimeout(() => { container.remove(); }, 2800);
+  }
+
+  function showDefenseTaunt(player, giftName, coins) {
+    if (!player) return;
+    const url = player.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${player.playerNumber}`;
+    const taunts = [
+      '😂 الرفسة رجعت بالعكس!',
+      '😜 حاول كمان... مستحيل توصل!',
+      '😎 جدار حديدي، مو أي جدار!',
+      '🤣 مشي يا حبيبي، مشي!',
+      '😝 محمي من كل الاتجاهات!',
+      '🙄 خلاص خلاص، ما ينفع هكذا!'
+    ];
+    const taunt = taunts[Math.floor(Math.random() * taunts.length)];
+    const container = document.createElement('div');
+    container.className = 'defense-taunt-overlay';
+    container.innerHTML = `
+      <div class="dt-scene">
+        <img class="dt-defender" src="${url}" alt="">
+        <div class="dt-shield">🛡️</div>
+        <div class="dt-shoe">👟</div>
+        <div class="dt-spark">✨</div>
+        <div class="dt-bubble-tail">👇</div>
+        <div class="dt-bubble">${taunt}</div>
+        <div class="dt-info">🛡️ ${player.nickname} دافع عن نفسه بـ [${giftName || 'وردة'}] (${coins || 1} عملة)!</div>
+      </div>`;
+    document.body.appendChild(container);
+    setTimeout(() => { container.remove(); }, 3000);
   }
 
   function showShieldPopup(player, rounds) {
