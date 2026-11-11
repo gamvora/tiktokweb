@@ -155,8 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDrawerConnect = document.getElementById('btnDrawerConnect');
   const btnDrawerDisconnect = document.getElementById('btnDrawerDisconnect');
   const drawerTiktokStatusText = document.getElementById('drawerTiktokStatusText');
-  const drawerWebhookUrl = document.getElementById('drawerWebhookUrl');
-  const btnCopyWebhook = document.getElementById('btnCopyWebhook');
   const btnDrawerToggleJoin = document.getElementById('btnDrawerToggleJoin');
   const btnDrawerNextRound = document.getElementById('btnDrawerNextRound');
   const btnDrawerFinalRound = document.getElementById('btnDrawerFinalRound');
@@ -191,8 +189,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const setDrawerDefSec = document.getElementById('setDrawerDefSec');
   const drawerLogsContainer = document.getElementById('drawerLogsContainer');
   const btnDrawerClearLogs = document.getElementById('btnDrawerClearLogs');
-  const backendUrlInput = document.getElementById('backendUrlInput');
-  const btnSaveBackendUrl = document.getElementById('btnSaveBackendUrl');
 
   // Welcome / Connect modal
   const welcomeModal = document.getElementById('welcomeModal');
@@ -230,7 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentSnapshot = null;
   let lastVisualState = null;
   let allPlayers = [];
-  let currentTimerTotal = 30;
+  let currentTimerTotal = 20;
   let currentTargetSelectTotal = 20;
   let soundMuted = false;
 
@@ -283,33 +279,6 @@ document.addEventListener('DOMContentLoaded', () => {
       (g.nameEn && g.nameEn.toLowerCase() === String(idOrName).toLowerCase())
     );
     return match || { id: idOrName, nameAr: idOrName, emoji: '🎁', coins: 1, image: `assets/gifts/${idOrName}.png` };
-  }
-
-  // ── Webhook URL ───────────────────────────────────────────
-  if (drawerWebhookUrl) {
-    drawerWebhookUrl.value = BACKEND_URL
-      ? `${BACKEND_URL}/api/tikfinity/webhook`
-      : '⚠️ أدخل رابط الخادم أولاً';
-  }
-  if (btnCopyWebhook) {
-    btnCopyWebhook.addEventListener('click', () => {
-      if (!BACKEND_URL) { alert('أدخل رابط خادم الباك إند أولاً'); return; }
-      navigator.clipboard.writeText(drawerWebhookUrl.value).catch(() => {});
-      alert('تم نسخ رابط TikFinity Webhook!');
-    });
-  }
-
-  // ── Backend URL ───────────────────────────────────────────
-  if (backendUrlInput) backendUrlInput.value = BACKEND_URL || '';
-  if (btnSaveBackendUrl) {
-    btnSaveBackendUrl.addEventListener('click', () => {
-      const value = (backendUrlInput?.value || '').trim();
-      if (value && !/^https?:\/\//i.test(value)) {
-        alert('اكتب الرابط كاملاً مع https:// مثال: https://your-app.up.railway.app');
-        return;
-      }
-      window.setBackendUrl(value);
-    });
   }
 
   // ── Sound ─────────────────────────────────────────────────
@@ -599,14 +568,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('player_shield_activated', ({ player, rounds } = {}) => {
       if (window.soundEngine) window.soundEngine.savedFanfare();
-      showShieldPopup(player, rounds);
-      setTimeout(() => hideAllModals(), 5000);
+      hideAllModals();
+      showShieldAura(player, rounds);
+    });
+
+    socket.on('player_shield_consumed', ({ player } = {}) => {
+      if (window.soundEngine) window.soundEngine.savedFanfare();
+      hideAllModals();
+      showShieldBreak(player);
     });
 
     socket.on('final_round_started', ({ duration } = {}) => {
       hideAllModals();
       if (window.celebration3D) window.celebration3D.start('quick'); // short 3D burst
-      setBanner(`🏆 بدأت مرحلة الحسم النهائي! أرسل الهدية المطلوبة (${duration || 60} ثانية)`);
+      showFinalRoundAnnounce(duration || 20);
+      const fConf = currentSnapshot?.settings?.gifts?.finalRound;
+      const fInfo = getGiftInfo(fConf?.giftId || fConf?.giftName || 'rocket');
+      setBanner(`🏆 بدأ الحسم النهائي! أرسل [${fConf?.giftName || fInfo.nameAr}] (${fConf?.minCoins || fInfo.coins || 100} عملة) خلال ${duration || 20} ثانية`);
     });
 
     socket.on('final_round_score_updated', ({ player, score } = {}) => {
@@ -619,7 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.soundEngine) window.soundEngine.siren();
       const wConf = currentSnapshot?.settings?.gifts?.winnerChallenge;
       const wInfo = getGiftInfo(wConf?.giftId || wConf?.giftName || 'crown');
-      const secs = duration || 30;
+      const secs = duration || 20;
       showResultModal('⚔️ تحدي الفائز!',
         `${challenger?.nickname || 'متحدٍ'} يتحدى ${winner?.nickname || 'الفائز'}! أرسل [${wConf?.giftName || wInfo.nameAr}] (${wConf?.minCoins || wInfo.coins || 100} عملة) خلال ${secs} ثانية.`, '⚔️', '#a855f7');
     });
@@ -708,16 +686,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('player_rejoined', ({ player, coins }) => {
       if (window.soundEngine) window.soundEngine.rejoin();
-      showResultModal('🔄 عودة إلى اللعبة!',
-        `${player.nickname} دفع ${coins} عملة وعاد إلى المنافسة برقم #${player.playerNumber}!`, '🔄', '#3b82f6');
-      setTimeout(() => hideAllModals(), 3500);
+      hideAllModals();
+      showRejoinAnimation(player, coins);
     });
 
-    socket.on('player_helped', ({ helperName, target }) => {
+    socket.on('player_helped', ({ helperName, target, coins }) => {
       if (window.soundEngine) window.soundEngine.rejoin();
-      showResultModal('❤️ مساعدة نبيلة!',
-        `قام ${helperName} بمساعدة ${target.nickname} وإعادته للعبة!`, '❤️', '#ec4899');
-      setTimeout(() => hideAllModals(), 3800);
+      hideAllModals();
+      showRejoinAnimation(target, coins, helperName);
     });
 
     socket.on('winner_declared', ({ winner }) => {
@@ -726,7 +702,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.celebration3D) window.celebration3D.start('win'); // Three.js 3D celebration
       showWinnerModal(winner);
       const timerEl = document.getElementById('winnerChallengeTimer');
-      let remaining = 30;
+      let remaining = 20;
       if (timerEl) timerEl.textContent = remaining;
       if (window.__winnerTimer) clearInterval(window.__winnerTimer);
       window.__winnerTimer = setInterval(() => {
@@ -762,7 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
       chosenPlayer: null, targetPlayer: null, winner: null,
       settings: {
         joinKeyword: 'تم', isJoinOpen: true,
-        timers: { defenseDuration: 30, targetSelectDuration: 20 },
+        timers: { defenseDuration: 20, targetSelectDuration: 20 },
         gifts: {
           defense: { giftName: 'وردة', giftId: 'rose', minCoins: 1 },
           shield: { giftName: 'نظارات شمسية', giftId: 'sunglasses', minCoins: 30 },
@@ -1574,17 +1550,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     eliminationModal.classList.add('active');
 
-    // يبقى ظاهراً 6 ثوان كاملة
+    // يبقى ظاهراً 7 ثوان كاملة
     setTimeout(() => {
       if (eliminationModal.classList.contains('active')) eliminationModal.classList.remove('active');
-    }, 6000);
+    }, 7000);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // مشاهد سينمائية 7 ثوانٍ (v4) — مشتركة لكل أحداث اللعبة
+  // بناء DOM ديناميكي + CSS keyframes (transform/opacity فقط)
+  // ══════════════════════════════════════════════════════════
+  const SCENE_LIFETIME = 7000; // كل أنميشن يظهر 7 ثوانٍ كاملة
+  const fxAvatar = (p) => (p && (p.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.playerNumber}`)) || '';
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+  function fxMount(el) {
+    document.body.appendChild(el);
+    setTimeout(() => { el.remove(); }, SCENE_LIFETIME);
   }
 
   function showKickAnimation(player, by) {
     if (!player) return;
-    const avatar = (p) => p.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.playerNumber}`;
-    const kicker = by ? avatar(by) : '';
-    const victim = avatar(player);
     const lines = [
       '🦵 رفسة طيارة... بالعكس، طيران مجاني!',
       '😂 طار من اللعبة بسرعة الضوء!',
@@ -1593,29 +1579,28 @@ document.addEventListener('DOMContentLoaded', () => {
       '😬 هذا اللي يصير لما تختار الشخص الغلط!',
       '🛫 رحلة ذهاب بدون عودة — بوينغ!'
     ];
-    const line = lines[Math.floor(Math.random() * lines.length)];
     const container = document.createElement('div');
-    container.className = 'kick-animation-overlay shaking';
+    container.className = 'fx-overlay fx-kick shaking';
     container.innerHTML = `
-      <div class="kick-scene">
-        ${kicker ? `<img class="kick-kicker" src="${kicker}" alt="">` : ''}
+      <div class="fx-scene kick-scene-v4">
+        <div class="kick-warning-stripe"></div>
+        ${by ? `<img class="kick-kicker" src="${fxAvatar(by)}" alt="">` : ''}
         <div class="kick-leg">🦵</div>
         <div class="kick-boot">👟</div>
-        <img class="kick-victim" src="${victim}" alt="">
+        <img class="kick-victim" src="${fxAvatar(player)}" alt="">
         <div class="kick-impact">💥</div>
-        <div class="kick-stars"><span>⭐</span><span>💫</span><span>✨</span><span>⭐</span><span>💥</span></div>
+        <div class="kick-flash"></div>
+        <div class="kick-stars"><span>⭐</span><span>💫</span><span>✨</span><span>⭐</span><span>💥</span><span>💫</span></div>
         <div class="kick-dust">💨</div>
         <div class="kick-dust d2">💨</div>
         <div class="kick-sub">🦵 ${by ? by.nickname : 'صاحب القرار'} ركل ${player.nickname} خارج اللعبة!</div>
-        <div class="kick-text">${line}</div>
+        <div class="kick-text">${pick(lines)}</div>
       </div>`;
-    document.body.appendChild(container);
-    setTimeout(() => { container.remove(); }, 2800);
+    fxMount(container);
   }
 
   function showDefenseTaunt(player, giftName, coins) {
     if (!player) return;
-    const url = player.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${player.playerNumber}`;
     const taunts = [
       '😂 الرفسة رجعت بالعكس!',
       '😜 حاول كمان... مستحيل توصل!',
@@ -1624,40 +1609,106 @@ document.addEventListener('DOMContentLoaded', () => {
       '😝 محمي من كل الاتجاهات!',
       '🙄 خلاص خلاص، ما ينفع هكذا!'
     ];
-    const taunt = taunts[Math.floor(Math.random() * taunts.length)];
     const container = document.createElement('div');
-    container.className = 'defense-taunt-overlay';
+    container.className = 'fx-overlay fx-taunt';
     container.innerHTML = `
-      <div class="dt-scene">
-        <img class="dt-defender" src="${url}" alt="">
+      <div class="fx-scene dt-scene-v4">
+        <img class="dt-defender" src="${fxAvatar(player)}" alt="">
         <div class="dt-shield">🛡️</div>
         <div class="dt-shoe">👟</div>
         <div class="dt-spark">✨</div>
         <div class="dt-bubble-tail">👇</div>
-        <div class="dt-bubble">${taunt}</div>
+        <div class="dt-bubble">${pick(taunts)}</div>
         <div class="dt-info">🛡️ ${player.nickname} دافع عن نفسه بـ [${giftName || 'وردة'}] (${coins || 1} عملة)!</div>
       </div>`;
-    document.body.appendChild(container);
-    setTimeout(() => { container.remove(); }, 3000);
+    fxMount(container);
   }
 
-  function showShieldPopup(player, rounds) {
+  // 🔄 العودة بعد الإقصاء — اللاعب يصعد من "مقبرته" وينفض الغبار
+  function showRejoinAnimation(player, coins, helperName) {
     if (!player) return;
-    const url = player.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${player.playerNumber}`;
+    const lines = helperName
+      ? ['❤️ صديق وفّي ما نسيه!', '🤝 ساعدوه ورجع أقوى!', '💖 العملة الذكية رجعته للمعركة!']
+      : ['🔄 عاد من الأموات!', '😎 لم تنته الحكاية بعد!', '🔥 العودة كانت لا بد أن تحدث!', '💰 اشترى تذكرته بجيب موفق!'];
     const container = document.createElement('div');
-    container.className = 'shield-popup-overlay';
+    container.className = 'fx-overlay fx-rejoin';
     container.innerHTML = `
-      <div class="shield-popup">
-        <img src="${url}" alt="" class="shield-popup-avatar">
-        <div class="shield-popup-text">
-          <div style="font-size:20px; font-weight:900; color:#60a5fa;">🛡️ حصانة!</div>
-          <div style="font-size:15px; color:#e2e8f0; margin-top:4px;">${player.nickname} (#${player.playerNumber})</div>
-          <div style="font-size:13px; color:#94a3b8; margin-top:4px;">قام بشراء حصانة (قلب إضافي) — ${rounds || 1} جولة</div>
+      <div class="fx-scene rj-scene">
+        <div class="rj-portal"></div>
+        <div class="rj-portal-ring"></div>
+        <img class="rj-player" src="${fxAvatar(player)}" alt="">
+        <div class="rj-hand">🤚</div>
+        <div class="rj-sparkles"><span>✨</span><span>💫</span><span>⭐</span><span>✨</span></div>
+        <div class="rj-ghost">👻</div>
+        <div class="rj-bubble">${pick(lines)}</div>
+        <div class="rj-info">${helperName
+          ? `❤️ ${helperName} أعاد ${player.nickname} إلى اللعبة!`
+          : `🔄 ${player.nickname} دفع ${coins || 5} عملة وعاد رقمه #${player.playerNumber}!`}</div>
+      </div>`;
+    fxMount(container);
+  }
+
+  // 🛡️ تفعيل الحصانة — قبة درع تنزل على اللاعب + حلقة دوارة
+  function showShieldAura(player, rounds) {
+    if (!player) return;
+    const container = document.createElement('div');
+    container.className = 'fx-overlay fx-shield';
+    container.innerHTML = `
+      <div class="fx-scene sh-scene">
+        <img class="sh-player" src="${fxAvatar(player)}" alt="">
+        <div class="sh-num">#${player.playerNumber}</div>
+        <div class="sh-dome"></div>
+        <div class="sh-ring"></div>
+        <div class="sh-ring r2"></div>
+        <div class="sh-glyph">🛡️</div>
+        <div class="sh-sparks"><span>✦</span><span>✧</span><span>✦</span><span>✧</span></div>
+        <div class="sh-title">🛡️ حـصـانـة كـامـلـة!</div>
+        <div class="sh-info">${player.nickname} أصبح منيعاً من الاستهداف (${rounds || 1} جولة)</div>
+      </div>`;
+    fxMount(container);
+  }
+
+  // 💔 استهلاك الدرع عند الإقصاء — الدرع يتشقق ويتحطم ويبقى اللاعب
+  function showShieldBreak(player) {
+    if (!player) return;
+    const container = document.createElement('div');
+    container.className = 'fx-overlay fx-shield-break';
+    container.innerHTML = `
+      <div class="fx-scene sb-scene">
+        <img class="sb-player" src="${fxAvatar(player)}" alt="">
+        <div class="sb-shield">🛡️</div>
+        <div class="sb-crack c1">⚡</div>
+        <div class="sb-crack c2">⚡</div>
+        <div class="sb-crack c3">💥</div>
+        <div class="sb-shards"><span>🔷</span><span>🔹</span><span>💠</span><span>🔷</span><span>🔹</span></div>
+        <div class="sb-relief">😮‍💨</div>
+        <div class="sb-title">💔 الدرع تحطّم... لكنه نجا!</div>
+        <div class="sb-info">🛡️ ${player.nickname} استهلك درع الحصانة وبقي في اللعبة!</div>
+      </div>`;
+    fxMount(container);
+  }
+
+  // 🏆 إعلان الحسم النهائي — أضواء مسرحية + إعلان ضخم
+  function showFinalRoundAnnounce(duration) {
+    const fConf = currentSnapshot?.settings?.gifts?.finalRound;
+    const fInfo = getGiftInfo(fConf?.giftId || fConf?.giftName || 'rocket');
+    const container = document.createElement('div');
+    container.className = 'fx-overlay fx-final';
+    container.innerHTML = `
+      <div class="fx-scene fin-scene">
+        <div class="fin-spotlight sl1"></div>
+        <div class="fin-spotlight sl2"></div>
+        <div class="fin-rays"></div>
+        <div class="fin-stamp">🏆</div>
+        <div class="fin-title">حـسـم الـجـولـة!</div>
+        <div class="fin-sub">آخر رحلة... من يجمع أكبر عدد هدائياً يفوز!</div>
+        <div class="fin-gift-row">
+          <img class="fin-gift-img" src="${fInfo.image}" alt="">
+          <div class="fin-gift-pill">🎁 ${fConf?.giftName || fInfo.nameAr} — ${fConf?.minCoins || fInfo.coins || 100} عملة</div>
+          <div class="fin-timer-pill">⏱️ ${duration || 20} ثانية</div>
         </div>
       </div>`;
-    document.body.appendChild(container);
-    setTimeout(() => { container.classList.add('shield-popup-out'); }, 10);
-    setTimeout(() => { container.remove(); }, 5000);
+    fxMount(container);
   }
 
   function showWinnerModal(winner) {

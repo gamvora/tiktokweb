@@ -23,8 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnConnectTikTok     = document.getElementById('btnConnectTikTok');
   const btnDisconnectTikTok  = document.getElementById('btnDisconnectTikTok');
   const tiktokStatusText     = document.getElementById('tiktokStatusText');
-  const copyWebhookBtn       = document.getElementById('copyWebhookBtn');
-  const webhookUrlInput      = document.getElementById('webhookUrlInput');
 
   const btnStartRoulette     = document.getElementById('btnStartRoulette');
   const btnToggleJoin        = document.getElementById('btnToggleJoin');
@@ -104,38 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
       console.error('[Admin] apiDelete failed:', path, e);
     }
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // Webhook URL Setup
-  // ─────────────────────────────────────────────────────────────
-  const webhookBase = BACKEND_URL || '';
-  if (webhookUrlInput) {
-    webhookUrlInput.value = webhookBase
-      ? `${webhookBase}/api/tikfinity/webhook`
-      : '⚠️ أدخل رابط الخادم أولاً';
-  }
-  if (copyWebhookBtn) {
-    copyWebhookBtn.addEventListener('click', () => {
-      if (!webhookBase) { alert('أدخل رابط خادم الباك إند أولاً'); return; }
-      navigator.clipboard.writeText(webhookUrlInput.value);
-      alert('✅ تم نسخ رابط TikFinity Webhook!');
-    });
-  }
-
-  // ── Backend URL Setting ─────────────────────────────────────
-  const adminBackendUrlInput = document.getElementById('adminBackendUrlInput');
-  const btnSaveBackendUrlAdmin = document.getElementById('btnSaveBackendUrlAdmin');
-  if (adminBackendUrlInput) adminBackendUrlInput.value = BACKEND_URL || '';
-  if (btnSaveBackendUrlAdmin) {
-    btnSaveBackendUrlAdmin.addEventListener('click', () => {
-      const value = (adminBackendUrlInput?.value || '').trim();
-      if (value && !/^https?:\/\//i.test(value)) {
-        alert('اكتب الرابط كاملاً مع https:// مثال: https://your-app.up.railway.app');
-        return;
-      }
-      window.setBackendUrl(value);
-    });
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -815,17 +781,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (statusEl) statusEl.innerHTML = `<span style="color:#9ca3af;">⚪ تم قطع الاتصال</span>`;
     });
   }
-
-  // Webhook copy in drawer
-  const btnCopyWebhook = document.getElementById('btnCopyWebhook');
-  if (btnCopyWebhook) {
-    btnCopyWebhook.addEventListener('click', () => {
-      const urlEl = document.getElementById('drawerWebhookUrl');
-      if (urlEl) { navigator.clipboard.writeText(urlEl.value); alert('✅ تم نسخ رابط Webhook!'); }
-    });
-  }
-  const drawerWebhookUrl = document.getElementById('drawerWebhookUrl');
-  if (drawerWebhookUrl) drawerWebhookUrl.value = `${webhookBase}/api/tikfinity/webhook`;
 
   // ─────────────────────────────────────────────────────────────
   // Settings Form

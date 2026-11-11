@@ -317,8 +317,8 @@
           <img id="winnerChallengeGiftImg" src="" alt="" style="width:48px;height:48px;object-fit:contain;">
           <div>
             <div style="font-weight:800; color:#fbbf24;">⚔️ تحدي الفائز!</div>
-            <div id="winnerChallengeText" style="font-size:13px; color:#cbd5e1;">أرسل [هدية] لتحدي البطل (${30} ثانية)</div>
-            <div id="winnerChallengeTimer" style="font-size:22px; font-weight:900; color:#ef4444;">30</div>
+            <div id="winnerChallengeText" style="font-size:13px; color:#cbd5e1;">أرسل [هدية] لتحدي البطل (20 ثانية)</div>
+            <div id="winnerChallengeTimer" style="font-size:22px; font-weight:900; color:#ef4444;">20</div>
           </div>
         </div>
 
@@ -370,7 +370,7 @@
           <!-- Tab 1: Live Connection -->
           <div id="tab-live" class="tab-pane active">
             <div class="drawer-form-group">
-              <label class="drawer-label" style="font-size: 14px; color: #fef08a;">1. الربط المباشر باسم المستخدم (TikTok Username):</label>
+              <label class="drawer-label" style="font-size: 14px; color: #fef08a;">📡 الربط المباشر — فقط اكتب يوزر تيك توك:</label>
               <div class="drawer-row">
                 <input type="text" id="drawerTiktokUser" class="drawer-input" placeholder="اكتب اسم الحساب مثل: therealadhamyy" style="direction: ltr; text-align: left; font-size: 15px;">
                 <button id="btnDrawerConnect" class="drawer-btn drawer-btn-primary" style="white-space: nowrap; font-weight: 800;">
@@ -383,34 +383,13 @@
               <div id="drawerTiktokStatusText" style="margin-top: 8px; font-size: 13px; color: var(--text-muted);">
                 ⚪ غير متصل بالبث المباشر
               </div>
+              <p style="font-size: 12px; color: #94a3b8; margin-top: 8px; line-height: 1.5;">
+                ✅ كل ما تحتاجه هو اسم حسابك — الموقع يتحقق من البث تلقائياً ويربط الشات والهدايا والانضمام فوراً بدون أي إعدادات إضافية.
+              </p>
               <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
                 <button id="btnCopyObsLinkDrawer" class="drawer-btn" style="flex:1; font-size:12px;">📋 نسخ رابط OBS</button>
                 <button id="btnDrawerChangeAccount" class="drawer-btn" style="flex:1; font-size:12px;">🔄 تغيير الحساب</button>
               </div>
-            </div>
-
-            <!-- TikFinity Webhook Option -->
-            <div class="drawer-form-group" style="margin-top: 18px; background: rgba(59, 130, 246, 0.08); padding: 14px; border-radius: 14px; border: 1px solid rgba(59, 130, 246, 0.25);">
-              <label class="drawer-label" style="color: #93c5fd; font-size: 14px;">2. رابط TikFinity Webhook المجاني (يعمل دائماً بدون أي قيود شبكة):</label>
-              <div class="drawer-row" style="margin-top: 8px;">
-                <input type="text" id="drawerWebhookUrl" class="drawer-input" readonly style="direction: ltr; text-align: left; background: #000; color: #6ee7b7; font-family: monospace;">
-                <button id="btnCopyWebhook" class="drawer-btn" style="white-space: nowrap; background: #2563eb; color: #fff;">📋 نسخ الرابط</button>
-              </div>
-              <p style="font-size: 12px; color: #94a3b8; margin-top: 6px; line-height: 1.5;">
-                ضع هذا الرابط في إعدادات Webhook ببرنامج TikFinity مع تفعيل Chat و Gift و Join وسيقوم الموقع باستقبال كافة الأحداث تلقائياً فوراً!
-              </p>
-            </div>
-
-            <!-- Backend URL -->
-            <div class="drawer-form-group" style="margin-top: 18px; background: rgba(16, 185, 129, 0.08); padding: 14px; border-radius: 14px; border: 1px solid rgba(16, 185, 129, 0.25);">
-              <label class="drawer-label" style="color: #6ee7b7; font-size: 14px;">3. رابط خادم الباك إند (Backend URL):</label>
-              <div class="drawer-row" style="margin-top: 8px;">
-                <input type="text" id="backendUrlInput" class="drawer-input" placeholder="https://your-app.up.railway.app" style="direction: ltr; text-align: left;">
-                <button id="btnSaveBackendUrl" class="drawer-btn drawer-btn-primary" style="white-space: nowrap;">💾 حفظ وإعادة الاتصال</button>
-              </div>
-              <p style="font-size: 12px; color: #94a3b8; margin-top: 6px; line-height: 1.5;">
-                مطلوب فقط عند فتح الموقع من GitHub Pages أو أي استضافة ثابتة. على Railway/Render يعمل تلقائياً بنفس النطاق.
-              </p>
             </div>
           </div>
 
@@ -584,7 +563,7 @@
                 </div>
                 <div class="drawer-form-group">
                   <label class="drawer-label">مؤقت الدفاع عن النفس (ثانية):</label>
-                  <input type="number" id="setDrawerDefSec" class="drawer-input" value="30">
+                  <input type="number" id="setDrawerDefSec" class="drawer-input" value="20">
                 </div>
               </div>
                <div class="drawer-form-group" style="margin-top:10px;">

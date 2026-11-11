@@ -144,6 +144,7 @@ class GameState extends EventEmitter {
       try {
         if (saved.settings) {
           this.settings = this.mergeSettings(this.settings, saved.settings);
+          this.migrateTimers();
         }
         if (Array.isArray(saved.players)) this.players = saved.players;
         if (saved.roundNumber) this.roundNumber = saved.roundNumber;
@@ -161,6 +162,16 @@ class GameState extends EventEmitter {
         console.error('[GameState] Failed to restore from storage:', e);
       }
     }
+  }
+
+  // ترقية المؤقتات المحفوظة من إصدارات قديمة إلى الإعدادات الجديدة (20 ثانية)
+  migrateTimers() {
+    const t = this.settings.timers;
+    if (!t) return;
+    if (t.defenseDuration === 30) t.defenseDuration = 20;
+    if (t.challengeDuration === 30 || t.challengeDuration === 45) t.challengeDuration = 20;
+    if (t.finalRoundDuration === 60) t.finalRoundDuration = 20;
+    if (t.targetSelectDuration === 30) t.targetSelectDuration = 20;
   }
 
   // دمج عميق للإعدادات بحيث لا تُفقد الحقول الافتراضية عند حفظ جزء منها فقط
@@ -709,7 +720,7 @@ class GameState extends EventEmitter {
     this.emit('state_updated', this.getSnapshot());
 
     // Transition to DEFENDING countdown
-    const defenseSeconds = this.settings.timers.defenseDuration || 30;
+    const defenseSeconds = this.settings.timers.defenseDuration || 20;
     if (this._defenseTimeout) clearTimeout(this._defenseTimeout);
     this._defenseTimeout = setTimeout(() => {
       if (!this.targetPlayer || this.state !== GameStates.ELIMINATION_WARNING) return;
@@ -1028,7 +1039,7 @@ class GameState extends EventEmitter {
   startFinalRound() {
     this.state = GameStates.FINAL_ROUND;
     this.finalRoundScores = {};
-    const duration = this.settings.timers.finalRoundDuration || 60;
+    const duration = this.settings.timers.finalRoundDuration || 20;
 
     this.logActivity('FINAL_ROUND_STARTED', `🏆 بدأت مرحلة حسم الجولة! أرسل الهدية المطلوبة للفوز! (${duration} ثانية)`);
     this.emit('final_round_started', { duration });
@@ -1116,7 +1127,7 @@ class GameState extends EventEmitter {
     if (!this.winner || !challenger) return false;
     this.state = GameStates.CHALLENGE;
     this.challenger = challenger;
-    const duration = this.settings.timers.challengeDuration || 45;
+    const duration = this.settings.timers.challengeDuration || 20;
 
     this.logActivity('CHALLENGE_STARTED', `⚔️ تحدي جديد! ${challenger.nickname} يتحدى الفائز ${this.winner.nickname}!`, {
       challenger,

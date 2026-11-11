@@ -60,9 +60,9 @@
     timers: {
       joinDuration: 60,
       targetSelectDuration: 20,
-      defenseDuration: 30,
-      challengeDuration: 30,
-      finalRoundDuration: 60
+      defenseDuration: 20,
+      challengeDuration: 20,
+      finalRoundDuration: 20
     },
 
     // What happens if player doesn't select a target in time:
