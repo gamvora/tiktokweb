@@ -135,7 +135,7 @@
       this.bursts = [];
       this.shake = 0;
       this.spotTimer = 0;
-      this.cameraPreset = { pos: new THREE.Vector3(0, 8.3, 15.0), look: new THREE.Vector3(0, 2.5, 0), fov: 55 };
+      this.cameraPreset = { pos: new THREE.Vector3(0, 7.6, 13.0), look: new THREE.Vector3(0, 2.2, 0), fov: 58 };
       this._camPos = this.cameraPreset.pos.clone();
       this._camLook = this.cameraPreset.look.clone();
       this._focus = null;         // {figure, dist, height}
@@ -280,6 +280,15 @@
       floor.rotation.x = -Math.PI / 2;
       this.scene.add(floor);
 
+      // O�O-U,USOc O�O�OU� O1U,USU�O O1U+O_ OU,U.O�O�O� (O-U,Oc O�O�O-U,Oc)
+      const shadow = new T.Mesh(
+        new T.CircleGeometry(8.2, 64),
+        new T.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.55, depthWrite: false })
+      );
+      shadow.rotation.x = -Math.PI / 2;
+      shadow.position.y = 0.02;
+      this.scene.add(shadow);
+
       // حلقة ذهبية حول منطقة العجلة
       const ring = new T.Mesh(
         new T.TorusGeometry(7.4, 0.09, 12, 90),
@@ -336,25 +345,45 @@
 
       // قاعدة ذهبية أسطوانية
       const base = new T.Mesh(
-        new T.CylinderGeometry(6.35, 6.55, 0.5, 64),
-        new T.MeshStandardMaterial({ color: '#d4a017', roughness: 0.35, metalness: 0.4, emissive: '#6b4a00', emissiveIntensity: 0.5 })
+        new T.CylinderGeometry(7.35, 7.55, 0.55, 72),
+        new T.MeshStandardMaterial({ color: '#d4a017', roughness: 0.3, metalness: 0.5, emissive: '#6b4a00', emissiveIntensity: 0.6 })
       );
       base.position.y = 0.25;
       this.wheelGroup.add(base);
 
       // شريط LED دوار حول الحافة
       this.ledRing = new T.Mesh(
-        new T.TorusGeometry(6.42, 0.07, 10, 96),
-        new T.MeshStandardMaterial({ color: '#fde047', emissive: '#fbbf24', emissiveIntensity: 2.2, roughness: 0.3 })
+        new T.TorusGeometry(7.42, 0.08, 12, 128),
+        new T.MeshStandardMaterial({ color: '#fde047', emissive: '#fbbf24', emissiveIntensity: 2.4, roughness: 0.25, metalness: 0.3 })
       );
       this.ledRing.rotation.x = -Math.PI / 2;
       this.ledRing.position.y = 0.52;
       this.wheelGroup.add(this.ledRing);
 
+      // U^USO� OU,O�O1O^O_Oc (rim) USO�O�O_ OU,U.O�O�O� USO�O_U^O�Oc (O�OO�O-U, O�U�O"USOc OU,U^O�Oc)
+      const rim = new T.Mesh(
+        new T.TorusGeometry(7.52, 0.22, 16, 128),
+        new T.MeshStandardMaterial({ color: '#b8860b', roughness: 0.25, metalness: 0.75, emissive: '#5a3e00', emissiveIntensity: 0.4 })
+      );
+      rim.rotation.x = -Math.PI / 2;
+      rim.position.y = 0.55;
+      this.wheelGroup.add(rim);
+      // O�O-U,USOc (bolts) O_U^OO� U^USO�
+      const boltMat = new T.MeshStandardMaterial({ color: '#fde047', roughness: 0.2, metalness: 0.9, emissive: '#b45309', emissiveIntensity: 0.6 });
+      const boltGeo = new T.CylinderGeometry(0.16, 0.16, 0.35, 12);
+      const boltCount = 24;
+      for (let i = 0; i < boltCount; i++) {
+        const ang = (i / boltCount) * Math.PI * 2;
+        const bolt = new T.Mesh(boltGeo, boltMat);
+        bolt.rotation.x = Math.PI / 2;
+        bolt.position.set(Math.sin(ang) * 7.52, 0.55, Math.cos(ang) * 7.52);
+        this.wheelGroup.add(bolt);
+      }
+
       // مركز العجلة (Hub)
       const hub = new T.Mesh(
-        new T.CylinderGeometry(1.05, 1.2, 0.5, 32),
-        new T.MeshStandardMaterial({ color: '#e11d48', roughness: 0.3, metalness: 0.3, emissive: '#7f1d1d', emissiveIntensity: 0.45 })
+        new T.CylinderGeometry(1.35, 1.5, 0.6, 32),
+        new T.MeshStandardMaterial({ color: '#e11d48', roughness: 0.25, metalness: 0.4, emissive: '#7f1d1d', emissiveIntensity: 0.6 })
       );
       hub.position.y = 0.55;
       this.wheelGroup.add(hub);
@@ -379,16 +408,16 @@
 
       // المؤشر الثابت (عند الكاميرا)
       const pointerGroup = new T.Group();
-      const ptrMat = new T.MeshStandardMaterial({ color: '#fde047', emissive: '#f59e0b', emissiveIntensity: 1.6, roughness: 0.3, metalness: 0.6 });
-      const arrow = new T.Mesh(new T.ConeGeometry(0.3, 0.95, 4), ptrMat);
+      const ptrMat = new T.MeshStandardMaterial({ color: '#fde047', emissive: '#f59e0b', emissiveIntensity: 2.0, roughness: 0.25, metalness: 0.7 });
+      const arrow = new T.Mesh(new T.ConeGeometry(0.42, 1.3, 4), ptrMat);
       arrow.rotation.x = Math.PI;
-      arrow.position.set(0, 1.95, 7.35);
+      arrow.position.set(0, 2.4, 8.0);
       pointerGroup.add(arrow);
-      const plate = new T.Mesh(new T.CylinderGeometry(0.34, 0.34, 0.16, 20), ptrMat);
-      plate.position.set(0, 2.55, 7.35);
+      const plate = new T.Mesh(new T.CylinderGeometry(0.48, 0.48, 0.2, 24), ptrMat);
+      plate.position.set(0, 3.15, 8.0);
       pointerGroup.add(plate);
-      const stick = new T.Mesh(new T.CylinderGeometry(0.045, 0.045, 0.6, 8), ptrMat);
-      stick.position.set(0, 2.28, 7.35);
+      const stick = new T.Mesh(new T.CylinderGeometry(0.06, 0.06, 0.9, 10), ptrMat);
+      stick.position.set(0, 2.75, 8.0);
       pointerGroup.add(stick);
       this.pointer = pointerGroup;
       this.pointerBounce = 0;
@@ -545,7 +574,7 @@
       const N = Math.max(this.players.length, 1);
       const slice = (Math.PI * 2) / N;
       const COLORS = ['#dc2626', '#2563eb', '#16a34a', '#9333ea', '#d97706', '#0284c7', '#e11d48', '#4f46e5'];
-      const R = 6.28;
+      const R = 7.28;
       for (let i = 0; i < this.players.length; i++) {
         const a0 = i * slice;
         const a1 = a0 + slice;
@@ -558,7 +587,7 @@
         const color = COLORS[i % COLORS.length];
         const mat = new T.MeshStandardMaterial({
           color, roughness: 0.5, metalness: 0.05,
-          emissive: color, emissiveIntensity: 0.3
+          emissive: color, emissiveIntensity: 0.45
         });
         const mesh = new T.Mesh(geo, mat);
         mesh.position.y = 0.5;
@@ -688,7 +717,7 @@
     }
 
     _placeFigure(rec) {
-      const R = 5.15;
+      const R = 6.15;
       const a = rec.angleWorld;
       rec.group.position.set(Math.sin(a) * R, 0, Math.cos(a) * R);
       rec.group.rotation.y = a; // يواجه للخارج
