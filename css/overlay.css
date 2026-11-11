@@ -40,7 +40,7 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: radial-gradient(circle at 50% 35%, #24144b 0%, #110a26 48%, #050209 100%);
+  background: radial-gradient(circle at 50% 35%, var(--colors-surface-elevated, #24144b) 0%, var(--colors-surface, #110a26) 48%, var(--colors-background, #050209) 100%);
   background-size: cover;
   padding: 16px 24px;
 }
