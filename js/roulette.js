@@ -1,4 +1,11 @@
 // Enhanced HTML5 Canvas Roulette Wheel with Player Avatars & Customization
+
+// Procedural motion — pattern from the threejs-animation skill (THREE.MathUtils.damp):
+// exponential approach normalized by delta time, so motion is frame-rate independent
+// (identical feel on 30fps phones and 144fps monitors).
+const damp = (current, target, lambda, dt) =>
+  current + (target - current) * (1 - Math.exp(-lambda * dt));
+
 class RouletteWheel {
   constructor(canvasId, options = {}) {
     this.canvas = document.getElementById(canvasId);
@@ -41,7 +48,7 @@ class RouletteWheel {
 
   initCanvas() {
     const rect = this.canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2); // cap DPR: crisp on retina, much cheaper on phones
     const size = Math.min(rect.width || 600, rect.height || 600);
 
     this.width = size;
@@ -443,12 +450,15 @@ class RouletteWheel {
     const totalRotationToCover = targetFinalAngle - startRotation;
 
     const startTime = performance.now();
+    let lastTime = startTime;
     const duration = this.options.spinDuration;
 
     const easeOutQuint = (t) => 1 - Math.pow(1 - t, 5);
 
     const animate = (currentTime) => {
       const elapsed = currentTime - startTime;
+      const dt = Math.min((currentTime - lastTime) / 1000, 0.05); // delta seconds (Timer pattern)
+      lastTime = currentTime;
       const progress = Math.min(elapsed / duration, 1);
       const easedProgress = easeOutQuint(progress);
 
@@ -466,7 +476,8 @@ class RouletteWheel {
         }
         this.pointerBounce = (Math.random() - 0.5) * 6 * (1 - progress);
       } else {
-        this.pointerBounce *= 0.8;
+        // Frame-rate independent decay of the pointer bounce (damp, not per-frame multiply)
+        this.pointerBounce = damp(this.pointerBounce, 0, 10, dt);
       }
 
       this.draw();
