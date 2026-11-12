@@ -62,7 +62,8 @@
       targetSelectDuration: 20,
       defenseDuration: 20,
       challengeDuration: 20,
-      finalRoundDuration: 20
+      finalRoundDuration: 20,
+      sceneLifetime: 7000
     },
 
     // What happens if player doesn't select a target in time:

@@ -187,6 +187,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const setDrawerTimeout = document.getElementById('setDrawerTimeout');
   const setDrawerTargetSec = document.getElementById('setDrawerTargetSec');
   const setDrawerDefSec = document.getElementById('setDrawerDefSec');
+  const setDrawerChallengeSec = document.getElementById('setDrawerChallengeSec');
+  const setDrawerFinalSec = document.getElementById('setDrawerFinalSec');
+  const setDrawerJoinSec = document.getElementById('setDrawerJoinSec');
+  const setDrawerSceneSec = document.getElementById('setDrawerSceneSec');
   const drawerLogsContainer = document.getElementById('drawerLogsContainer');
   const btnDrawerClearLogs = document.getElementById('btnDrawerClearLogs');
 
@@ -1579,7 +1583,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // مشاهد سينمائية 7 ثوانٍ (v4) — مشتركة لكل أحداث اللعبة
   // بناء DOM ديناميكي + CSS keyframes (transform/opacity فقط)
   // ══════════════════════════════════════════════════════════
-  const SCENE_LIFETIME = 7000; // كل أنميشن يظهر 7 ثوانٍ كاملة
+  let SCENE_LIFETIME = 7000; // كل أنميشن يظهر 7 ثوانٍ كاملة
   const fxAvatar = (p) => (p && (p.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.playerNumber}`)) || '';
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -2223,11 +2227,16 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         timers: {
           targetSelectDuration: parseInt(setDrawerTargetSec?.value || '20', 10),
-          defenseDuration: parseInt(setDrawerDefSec?.value || '30', 10)
+          defenseDuration: parseInt(setDrawerDefSec?.value || '30', 10),
+          challengeDuration: parseInt(setDrawerChallengeSec?.value || '20', 10),
+          finalRoundDuration: parseInt(setDrawerFinalSec?.value || '20', 10),
+          joinDuration: parseInt(setDrawerJoinSec?.value || '60', 10),
+          sceneLifetime: parseInt(setDrawerSceneSec?.value || '7', 10) * 1000
         }
       };
       if (BACKEND_URL || STANDALONE_MODE) {
         await apiPost('/settings', updated);
+        SCENE_LIFETIME = updated.timers?.sceneLifetime || SCENE_LIFETIME;
         if (wheel && updated.streamerAvatar) wheel.setCenterImage(updated.streamerAvatar);
         applyBackground(updated.background);
       } else {
@@ -2246,6 +2255,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (setDrawerTimeout) setDrawerTimeout.value = s.timeoutBehavior || 'skip';
     if (setDrawerTargetSec) setDrawerTargetSec.value = s.timers?.targetSelectDuration || 20;
     if (setDrawerDefSec) setDrawerDefSec.value = s.timers?.defenseDuration || 30;
+    if (setDrawerChallengeSec) setDrawerChallengeSec.value = s.timers?.challengeDuration || 20;
+    if (setDrawerFinalSec) setDrawerFinalSec.value = s.timers?.finalRoundDuration || 20;
+    if (setDrawerJoinSec) setDrawerJoinSec.value = s.timers?.joinDuration || 60;
+    if (setDrawerSceneSec) setDrawerSceneSec.value = Math.round((s.timers?.sceneLifetime || 7000) / 1000);
+    SCENE_LIFETIME = s.timers?.sceneLifetime || SCENE_LIFETIME || 7000;
     if (setDrawerStreamerAvatar) setDrawerStreamerAvatar.value = s.streamerAvatar || '';
     if (setDrawerStreamerName) setDrawerStreamerName.value = s.streamerName || '';
     const bg = s.background || {};

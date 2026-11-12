@@ -172,6 +172,7 @@ class GameState extends EventEmitter {
     if (t.challengeDuration === 30 || t.challengeDuration === 45) t.challengeDuration = 20;
     if (t.finalRoundDuration === 60) t.finalRoundDuration = 20;
     if (t.targetSelectDuration === 30) t.targetSelectDuration = 20;
+    if (!t.sceneLifetime) t.sceneLifetime = 7000;
   }
 
   // دمج عميق للإعدادات بحيث لا تُفقد الحقول الافتراضية عند حفظ جزء منها فقط
