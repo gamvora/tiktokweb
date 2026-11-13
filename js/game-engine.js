@@ -744,8 +744,9 @@ class GameState extends EventEmitter {
         if (this._defenseTimeout) clearTimeout(this._defenseTimeout);
         this._defenseTimeout = setTimeout(() => {
           if (!this.targetPlayer || this.state !== GameStates.ELIMINATION_WARNING) return;
+          this.state = GameStates.DEFENDING;
           this.handleDefenseTimeout();
-        }, 800);
+        }, 400);
         return { success: true, target };
       }
 
@@ -799,8 +800,9 @@ class GameState extends EventEmitter {
       if (this._defenseTimeout) clearTimeout(this._defenseTimeout);
       this._defenseTimeout = setTimeout(() => {
         if (!this.targetPlayer || this.state !== GameStates.ELIMINATION_WARNING) return;
+        this.state = GameStates.DEFENDING;
         this.handleDefenseTimeout();
-      }, 800);
+      }, 400);
       return { success: true, target };
     }
 
@@ -901,6 +903,10 @@ class GameState extends EventEmitter {
       this.chosenPlayer.killsCount = (this.chosenPlayer.killsCount || 0) + toEliminate.length;
     }
 
+    this.state = (toEliminate.length === 0 && targets.length > 0)
+      ? GameStates.SAVED
+      : GameStates.ELIMINATED;
+
     this.persist();
 
     for (const elim of toEliminate) {
@@ -910,12 +916,6 @@ class GameState extends EventEmitter {
 
     this.emit('players_updated', this.players);
     this.emit('state_updated', this.getSnapshot());
-
-    if (toEliminate.length === 0 && targets.length > 0) {
-      this.state = GameStates.SAVED;
-    } else {
-      this.state = GameStates.ELIMINATED;
-    }
 
     const remaining = this.getActivePlayers();
     if (remaining.length === 1) {

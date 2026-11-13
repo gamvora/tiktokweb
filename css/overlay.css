@@ -1019,19 +1019,22 @@ body {
 
 .ts-card-num {
   position: absolute;
-  bottom: -4px;
-  right: -4px;
+  bottom: -5px;
+  right: -5px;
   background: linear-gradient(135deg, #f59e0b, #b45309);
   color: #fff;
   font-weight: 900;
-  font-size: 11px;
-  width: 22px;
-  height: 22px;
+  font-size: 12.5px;
+  min-width: 27px;
+  height: 27px;
+  padding: 0 3px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #fff;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
+  z-index: 3;
 }
 
 .ts-card-name {
@@ -2227,6 +2230,86 @@ body {
 .fx-shield-break {
   background: radial-gradient(circle at 50% 55%, rgba(99, 102, 241, 0.2), transparent 66%);
 }
+/* Quick shield deflect (no countdown) */
+.fx-shield-deflect {
+  background: radial-gradient(circle at 50% 55%, rgba(96, 165, 250, 0.28), transparent 68%);
+}
+.sq-scene { width: min(92vw, 460px); height: 300px; }
+.sq-halo {
+  position: absolute; left: 50%; top: 42px;
+  width: 190px; height: 190px; margin-left: -95px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.35) 0%, rgba(59, 130, 246, 0.12) 55%, transparent 72%);
+  z-index: 1;
+  animation: sq-halo-pulse 0.9s ease-in-out 0.15s 2;
+}
+@keyframes sq-halo-pulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.55; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+.sq-player {
+  position: absolute; left: 50%; top: 72px;
+  width: 118px; height: 118px; border-radius: 50%;
+  border: 3px solid #60a5fa; object-fit: cover; z-index: 2;
+  margin-left: -59px;
+  animation: sq-player-in 0.5s var(--ease-spring) both;
+}
+@keyframes sq-player-in {
+  0% { transform: scale(0.55) translateY(30px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.sq-num {
+  position: absolute; left: 50%; top: 158px;
+  width: 54px; height: 54px; margin-left: -27px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: #fff; font-weight: 900; font-size: 21px;
+  display: flex; align-items: center; justify-content: center;
+  border: 3px solid #fff; z-index: 6;
+  box-shadow: 0 0 22px rgba(59, 130, 246, 0.95), 0 4px 14px rgba(0, 0, 0, 0.6);
+  animation: fx-pop 0.45s var(--ease-spring) 0.25s both;
+}
+.sq-shield {
+  position: absolute; left: 50%; top: 40px;
+  margin-left: -62px; font-size: 124px; line-height: 1; z-index: 5;
+  filter: drop-shadow(0 0 26px rgba(96, 165, 250, 0.95));
+  animation: sq-shield-in 0.5s var(--ease-spring) both,
+             sq-shield-break 0.55s ease-in 1.15s forwards;
+}
+@keyframes sq-shield-in {
+  0% { transform: translateY(-90px) scale(0.4); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes sq-shield-break {
+  0% { transform: scale(1); opacity: 1; }
+  35% { transform: scale(1.18) rotate(-8deg); opacity: 1; }
+  100% { transform: scale(1.5) rotate(14deg); opacity: 0; }
+}
+.sq-flash {
+  position: absolute; inset: 30px 15% 60px; z-index: 7; border-radius: 50%;
+  background: radial-gradient(circle, rgba(191, 219, 254, 0.95), transparent 65%);
+  opacity: 0; animation: sq-flash 0.5s ease-out 1.15s forwards;
+}
+@keyframes sq-flash {
+  0% { opacity: 0; transform: scale(0.5); }
+  30% { opacity: 0.9; transform: scale(1.1); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+.sq-title {
+  position: absolute; bottom: 56px; left: 50%; transform: translateX(-50%);
+  font-size: clamp(18px, 3vw, 26px); font-weight: 900; color: #bfdbfe;
+  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.9); white-space: nowrap;
+  opacity: 0; animation: fx-text-pop 0.5s var(--ease-spring) 1.5s forwards;
+}
+.sq-info {
+  position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
+  background: rgba(59, 130, 246, 0.25);
+  border: 1px solid rgba(147, 197, 253, 0.6);
+  color: #e0e7ff; font-weight: 800; font-size: clamp(13px, 2.4vw, 17px);
+  padding: 9px 20px; border-radius: var(--radius-pill);
+  white-space: nowrap; max-width: 92vw; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; animation: fx-text-pop 0.45s var(--ease-spring) 1.8s forwards;
+}
+
 .sb-scene { width: min(94vw, 480px); height: 330px; }
 .sb-player {
   position: absolute; left: 50%; top: 96px;

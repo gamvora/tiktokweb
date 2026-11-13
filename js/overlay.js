@@ -583,7 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('player_shield_consumed', ({ player } = {}) => {
       if (window.soundEngine) window.soundEngine.savedFanfare();
       hideAllModals();
-      showShieldBreak(player);
+      showShieldDeflect(player);
       if (window.__fx3d) window.__fx3d('player_shield_consumed', { player });
     });
 
@@ -669,11 +669,20 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('target_selected', ({ selector, target, target2 }) => {
       hideAllModals();
       if (window.soundEngine) window.soundEngine.siren();
-      if (target2) {
-        showConfrontationModal(selector, target, target2);
-      } else {
-        showConfrontationModal(selector, target);
+
+      const allTargets = [target, target2].filter(Boolean);
+      const openTargets = allTargets.filter(t => !t.hasShield);
+
+      if (openTargets.length > 0) {
+        // Only non-shielded targets need the defense countdown/UI
+        showConfrontationModal(selector, openTargets[0], openTargets[1]);
+      } else if (allTargets.length > 0) {
+        // All targeted players have a shield: no defense UI/countdown at all,
+        // the shield-break animation resolves the round instantly.
+        const t = allTargets[0];
+        setBanner(`🛡️ #${t.playerNumber} ${t.nickname} محمي بالحصانة — الحصانة تحميه مرة واحدة`);
       }
+
       if (window.__fx3d) window.__fx3d('target_selected', { selector, target });
       if (target2 && window.__fx3d) window.__fx3d('target_selected', { selector, target: target2 });
     });
@@ -1400,7 +1409,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (snapshot.targetPlayer && snapshot.chosenPlayer) {
           if (targetSelectionModal) targetSelectionModal.classList.remove('active');
           if (turnModal) turnModal.classList.remove('active');
-          showConfrontationModal(snapshot.chosenPlayer, snapshot.targetPlayer);
+          const targetsNow = [snapshot.targetPlayer, snapshot.targetPlayer2].filter(Boolean);
+          const openNow = targetsNow.filter(t => !t.hasShield);
+          if (openNow.length > 0) {
+            showConfrontationModal(snapshot.chosenPlayer, openNow[0], openNow[1]);
+          } else {
+            setBanner(`🛡️ #${snapshot.targetPlayer.playerNumber} محمي بالحصانة — الحصانة تحميه مرة واحدة`);
+          }
         }
         break;
       case 'SAVED':
@@ -1611,9 +1626,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const fxAvatar = (p) => (p && (p.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.playerNumber}`)) || '';
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-  function fxMount(el) {
+  function fxMount(el, lifetime) {
     document.body.appendChild(el);
-    setTimeout(() => { el.remove(); }, SCENE_LIFETIME);
+    setTimeout(() => { el.remove(); }, lifetime || SCENE_LIFETIME);
   }
 
   function showKickAnimation(player, by) {
@@ -1716,6 +1731,24 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // 💔 استهلاك الدرع عند الإقصاء — الدرع يتشقق ويتحطم ويبقى اللاعب
+  // Quick shield-deflect scene: big clear number, shield blocks once, then vanishes.
+  function showShieldDeflect(player) {
+    if (!player) return;
+    const container = document.createElement('div');
+    container.className = 'fx-overlay fx-shield-deflect';
+    container.innerHTML = `
+      <div class="fx-scene sq-scene">
+        <div class="sq-halo"></div>
+        <img class="sq-player" src="${fxAvatar(player)}" alt="">
+        <div class="sq-num">#${player.playerNumber}</div>
+        <div class="sq-shield">🛡️</div>
+        <div class="sq-flash"></div>
+        <div class="sq-title">🛡️ الحصانة أنقذته!</div>
+        <div class="sq-info">${player.nickname} — حُذفت الحصانة ويكمل اللعب</div>
+      </div>`;
+    fxMount(container, 3000);
+  }
+
   function showShieldBreak(player) {
     if (!player) return;
     const container = document.createElement('div');
