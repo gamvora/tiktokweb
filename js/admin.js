@@ -1103,7 +1103,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const giftInfo = getGiftInfo(cur.giftId || cur.giftName || 'rose');
       return `
         <div class="gift-config-card">
-          <div class="gift-config-header"><span class="gift-config-title">${cat.label}</span></div>
+          <div class="gift-config-header"><span class="gift-config-title">${cat.label}</span>
+            <label style="margin-left:auto;font-size:12px;color:#cbd5e1;"><input type="checkbox" class="admin-cat-enabled" data-cat="${cat.key}" ${cur.enabled !== false ? 'checked' : ''}> تفعيل</label>
+          </div>
           <div style="font-size:11px;color:#9ca3af;">${cat.desc}</div>
           <div class="gift-current-preview">
             <img class="gift-preview-img" src="${giftInfo.image}" alt="">
@@ -1138,6 +1140,16 @@ document.addEventListener('DOMContentLoaded', () => {
         await saveAdminGifts();
       });
     });
+    document.querySelectorAll('.admin-cat-enabled').forEach(inp => {
+      inp.addEventListener('change', async (e) => {
+        const catKey = e.target.dataset.cat;
+        if (!settings.gifts) settings.gifts = {};
+        if (!settings.gifts[catKey]) settings.gifts[catKey] = {};
+        settings.gifts[catKey].enabled = e.target.checked;
+        await saveAdminGifts();
+        if (typeof updateGiftTicker === 'function') updateGiftTicker();
+      });
+    });
   }
 
   window.adminSelectGift = async (catKey, giftId, giftName, defaultCoins) => {
@@ -1159,6 +1171,7 @@ document.addEventListener('DOMContentLoaded', () => {
       saveDemoState();
       if (bc) bc.postMessage({ type: 'settings_updated', settings });
     }
+    if (typeof updateGiftTicker === 'function') updateGiftTicker();
   }
 
   function populateWheelConfig() {

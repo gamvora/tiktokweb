@@ -77,7 +77,8 @@
         giftId: 'rose',
         minCoins: 1,
         count: 1,
-        labelAr: 'هدية الدفاع عن النفس'
+        labelAr: 'هدية الدفاع عن النفس',
+        enabled: true
       },
       rejoin: {
         giftName: 'قلب الحب',
@@ -86,7 +87,8 @@
         count: 1,
         keepPreviousNumber: true,
         allowMidRound: true,
-        labelAr: 'هدية العودة إلى اللعبة'
+        labelAr: 'هدية العودة إلى اللعبة',
+        enabled: true
       },
       help: {
         giftName: 'كاب تيك توك',
@@ -94,7 +96,8 @@
         minCoins: 16,
         count: 1,
         beneficiaryCoins: 5,
-        labelAr: 'هدية المساعدة / الإنقاذ'
+        labelAr: 'هدية المساعدة / الإنقاذ',
+        enabled: true
       },
       shield: {
         giftName: 'نظارات شمسية',
@@ -102,7 +105,8 @@
         minCoins: 30,
         count: 1,
         durationRounds: 1,
-        labelAr: 'هدية الحصانة / الدرع'
+        labelAr: 'هدية الحصانة / الدرع',
+        enabled: true
       },
       finalRound: {
         giftName: 'طائرة نفاثة / صاروخ',
@@ -110,14 +114,16 @@
         minCoins: 100,
         count: 1,
         rule: 'highest_gifts',
-        labelAr: 'هدية حسم الجولة'
+        labelAr: 'هدية حسم الجولة',
+        enabled: true
       },
       winnerChallenge: {
         giftName: 'تاج ذهبي',
         giftId: 'crown',
         minCoins: 100,
         count: 1,
-        labelAr: 'هدية تحدي الفائز'
+        labelAr: 'هدية تحدي الفائز',
+        enabled: true
       }
     },
 

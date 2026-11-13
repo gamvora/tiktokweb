@@ -113,7 +113,11 @@ class GameState extends EventEmitter {
 
     // Current Round Data
     this.chosenPlayer = null; // The player landed on by the wheel
-    this.targetPlayer = null; // The player targeted for elimination
+    this.targetPlayer = null;
+    this.targetPlayer2 = null;
+    this.savedTargets = new Set(); // The player targeted for elimination
+    this.targetPlayer2 = null; // Second target when chooser has shield
+    this.savedTargets = new Set(); // Targets saved by defense gift
     this.wheelResult = null;  // { playerNumber, angle, chosenPlayer }
 
     // Final round & winner challenge data
@@ -574,6 +578,8 @@ class GameState extends EventEmitter {
     this.state = GameStates.SPINNING;
     this.chosenPlayer = chosenPlayer;
     this.targetPlayer = null;
+    this.targetPlayer2 = null;
+    this.savedTargets = new Set();
 
     // Calculate angle for visual sync (wheel component will use this)
     const sliceAngle = 360 / activePlayers.length;
@@ -704,9 +710,58 @@ class GameState extends EventEmitter {
     // Shield acts as hearts: allow targeting shielded players
     // (shield is consumed if they fail to defend)
 
+    const selectorHasShield = !!selectorPlayer.hasShield;
+
+    // If selector has shield and already has a first target, this is the second pick
+    if (selectorHasShield && this.targetPlayer && !this.targetPlayer2 && target.id !== this.targetPlayer.id) {
+      this.targetPlayer2 = target;
+      // Lock in second target and proceed to elimination warning with both
+      this.stopTimer();
+      this.state = GameStates.ELIMINATION_WARNING;
+      this.logActivity('TARGET_SELECTED', `Second target ${target.nickname} (#${target.playerNumber}) by shielded ${selectorPlayer.nickname}`, {
+        selector: selectorPlayer,
+        target: this.targetPlayer,
+        target2: target
+      });
+      this.emit('target_selected', {
+        selector: selectorPlayer,
+        target: this.targetPlayer,
+        target2: target
+      });
+      this.emit('state_updated', this.getSnapshot());
+
+      const defenseSeconds = this.settings.timers.defenseDuration || 20;
+      if (this._defenseTimeout) clearTimeout(this._defenseTimeout);
+      this._defenseTimeout = setTimeout(() => {
+        if (!this.targetPlayer || this.state !== GameStates.ELIMINATION_WARNING) return;
+        this.state = GameStates.DEFENDING;
+        this.emit('state_updated', this.getSnapshot());
+        this.startTimer('defense', defenseSeconds, () => {
+          this.handleDefenseTimeout();
+        });
+      }, 2500);
+      return { success: true, target };
+    }
+
+    // If selector has shield and no target yet, allow first pick but keep selecting
+    if (selectorHasShield && !this.targetPlayer) {
+      this.targetPlayer = target;
+      this.logActivity('FIRST_TARGET_SELECTED', `First target ${target.nickname} (#${target.playerNumber}) by shielded ${selectorPlayer.nickname}`, {
+        selector: selectorPlayer,
+        target
+      });
+      this.emit('first_target_selected', {
+        selector: selectorPlayer,
+        target: this.targetPlayer
+      });
+      this.emit('state_updated', this.getSnapshot());
+      return { success: true, target };
+    }
+
     // Target is valid! Lock in!
     this.stopTimer();
     this.targetPlayer = target;
+    this.targetPlayer2 = null;
     this.state = GameStates.ELIMINATION_WARNING;
 
     this.logActivity('TARGET_SELECTED', `⚠️ اللاعب ${selectorPlayer.nickname} (#${selectorPlayer.playerNumber}) اختار إقصاء اللاعب ${target.nickname} (#${target.playerNumber})!`, {
@@ -752,6 +807,8 @@ class GameState extends EventEmitter {
       this.stopTimer();
       this.chosenPlayer = null;
       this.targetPlayer = null;
+    this.targetPlayer2 = null;
+    this.savedTargets = new Set();
       this.wheelResult = null;
       this.state = this.getActivePlayers().length >= 2
         ? GameStates.READY
@@ -786,53 +843,56 @@ class GameState extends EventEmitter {
   handleDefenseTimeout() {
     if (this.state !== GameStates.DEFENDING || !this.targetPlayer) return;
 
-    const target = this.targetPlayer;
+    const targets = [this.targetPlayer, this.targetPlayer2].filter(Boolean);
+    this.targetPlayer2 = null;
 
-    // Shield acts as hearts: consume one shield instead of eliminating
-    if (target.hasShield) {
-      target.hasShield = false;
-      target.shieldRoundsRemaining = 0;
-      if (target.status === 'immune') target.status = 'active';
-      this.state = GameStates.SAVED;
-      this.persist();
-      this.logActivity('SHIELD_CONSUMED', `🛡️ استخدم ${target.nickname} (#${target.playerNumber}) حصانة (قلب) للبقاء في اللعبة!`, { player: target });
-      this.emit('player_shield_consumed', { player: target });
-      this.emit('players_updated', this.players);
-      this.emit('state_updated', this.getSnapshot());
-      return;
+    const saved = this.savedTargets || new Set();
+    this.savedTargets = new Set();
+
+    const toEliminate = [];
+    for (const t of targets) {
+      if (saved.has(t.id)) {
+        t.status = 'active';
+        continue;
+      }
+      if (t.hasShield) {
+        t.hasShield = false;
+        t.shieldRoundsRemaining = 0;
+        if (t.status === 'immune') t.status = 'active';
+        this.emit('player_shield_consumed', { player: t });
+        continue;
+      }
+      t.status = 'eliminated';
+      t.eliminatedAt = new Date().toISOString();
+      t.eliminatedCount = (t.eliminatedCount || 0) + 1;
+      toEliminate.push(t);
     }
 
-    const eliminated = target;
-    eliminated.status = 'eliminated';
-    eliminated.eliminatedAt = new Date().toISOString();
-    eliminated.eliminatedCount = (eliminated.eliminatedCount || 0) + 1;
-
-    if (this.chosenPlayer) {
-      this.chosenPlayer.killsCount = (this.chosenPlayer.killsCount || 0) + 1;
+    if (this.chosenPlayer && toEliminate.length > 0) {
+      this.chosenPlayer.killsCount = (this.chosenPlayer.killsCount || 0) + toEliminate.length;
     }
-
-    this.state = GameStates.ELIMINATED;
 
     this.persist();
-    this.logActivity('PLAYER_ELIMINATED', `❌ تم إقصاء اللاعب ${eliminated.nickname} (#${eliminated.playerNumber}) من اللعبة!`, {
-      eliminated,
-      by: this.chosenPlayer
-    });
 
-    this.emit('player_eliminated', {
-      player: eliminated,
-      by: this.chosenPlayer
-    });
+    for (const elim of toEliminate) {
+      this.logActivity('PLAYER_ELIMINATED', 'Player eliminated', { eliminated: elim, by: this.chosenPlayer });
+      this.emit('player_eliminated', { player: elim, by: this.chosenPlayer });
+    }
+
     this.emit('players_updated', this.players);
     this.emit('state_updated', this.getSnapshot());
 
-    // Check if only 1 player remains -> Winner!
+    if (toEliminate.length === 0 && targets.length > 0) {
+      this.state = GameStates.SAVED;
+    } else {
+      this.state = GameStates.ELIMINATED;
+    }
+
     const remaining = this.getActivePlayers();
     if (remaining.length === 1) {
       if (this._winnerTimeout) clearTimeout(this._winnerTimeout);
       this._winnerTimeout = setTimeout(() => {
         this._winnerTimeout = null;
-        // تأكد أن اللاعب ما زال وحيداً (قد يعود لاعب مستبعد خلال المهلة)
         const remainingNow = this.getActivePlayers();
         if (remainingNow.length === 1) {
           this.declareWinner(remainingNow[0]);
@@ -848,19 +908,24 @@ class GameState extends EventEmitter {
       return false;
     }
 
-    // Verify sender is target player
+    // Determine which target is the sender (support two targets)
+    let matchedTarget = null;
     const cleanUnique = (uniqueId || '').replace(/^@/, '').toLowerCase();
-    const targetUnique = (this.targetPlayer.uniqueId || '').toLowerCase();
-    const isTarget =
-      (userId && String(userId) === String(this.targetPlayer.userId)) ||
-      (cleanUnique && cleanUnique === targetUnique);
+    const checkTarget = (t) => {
+      if (!t) return false;
+      const targetUnique = (t.uniqueId || '').toLowerCase();
+      return (userId && String(userId) === String(t.userId)) ||
+        (cleanUnique && cleanUnique === targetUnique);
+    };
+    if (checkTarget(this.targetPlayer)) matchedTarget = this.targetPlayer;
+    else if (checkTarget(this.targetPlayer2)) matchedTarget = this.targetPlayer2;
 
-    if (!isTarget) return false;
+    if (!matchedTarget) return false;
 
-    // Check gift validity: يجب أن تكون الهدية هي هدية الدفاع المحددة
     const defenseConf = this.settings.gifts.defense;
-    const coinValue = (diamonds || 1) * (repeatCount || 1);
+    if (defenseConf && defenseConf.enabled === false) return false;
 
+    const coinValue = (diamonds || 1) * (repeatCount || 1);
     if (!this.giftMatchesCategory({ giftId, giftName }, defenseConf)) {
       return false;
     }
@@ -868,64 +933,28 @@ class GameState extends EventEmitter {
       return false;
     }
 
-    // DEFENSE SUCCESS! Cancel elimination immediately!
-    this.stopTimer();
-    this.state = GameStates.SAVED;
-
-    const savedPlayer = this.targetPlayer;
-    savedPlayer.status = 'active';
+    // Save this target
+    if (!this.savedTargets) this.savedTargets = new Set();
+    this.savedTargets.add(matchedTarget.id);
+    matchedTarget.status = 'active';
 
     this.persist();
-    this.logActivity('PLAYER_SAVED', `🛡️ تم إنقاذ اللاعب ${savedPlayer.nickname} (#${savedPlayer.playerNumber})! نجح في الدفاع عن نفسه بالهدية وسيستمر في اللعبة!`, {
-      player: savedPlayer,
+    this.logActivity('PLAYER_SAVED', 'Player saved by defense gift', {
+      player: matchedTarget,
       gift: { giftName, diamonds: coinValue }
     });
-
-    this.emit('player_saved', {
-      player: savedPlayer,
-      giftName,
-      coins: coinValue
-    });
+    this.emit('player_saved', { player: matchedTarget, giftName, coins: coinValue });
     this.emit('players_updated', this.players);
     this.emit('state_updated', this.getSnapshot());
 
-    return true;
-  }
-
-  // -------------------------------------------------------------
-  // Rejoin & Help & Shield System (العودة، المساعدة، الحصانة)
-  // -------------------------------------------------------------
-
-  handleRejoin({ userId, uniqueId, nickname, profilePictureUrl, giftId, giftName, coins = 5, eventId }) {
-    if (!this.rememberEvent(eventId)) return false;
-
-    const player = this.getPlayerById(userId || uniqueId);
-    if (!player || player.status !== 'eliminated') {
-      return false;
+    // If all targets saved, move to SAVED
+    const targets = [this.targetPlayer, this.targetPlayer2].filter(Boolean);
+    const allSaved = targets.every(t => this.savedTargets.has(t.id));
+    if (allSaved) {
+      this.stopTimer();
+      this.state = GameStates.SAVED;
+      this.emit('state_updated', this.getSnapshot());
     }
-
-    const rejoinConf = this.settings.gifts.rejoin;
-    if (!this.giftMatchesCategory({ giftId, giftName }, rejoinConf)) {
-      return false;
-    }
-    if (coins < (rejoinConf.minCoins || 5)) {
-      return false;
-    }
-
-    player.status = 'active';
-    player.rejoinedAt = new Date().toISOString();
-
-    if (!rejoinConf.keepPreviousNumber) {
-      player.playerNumber = this.getAvailablePlayerNumber();
-    }
-
-    this.persist();
-    this.logActivity('PLAYER_REJOINED', `🔄 اللاعب ${player.nickname} عاد إلى اللعبة! (#${player.playerNumber})`, { player, coins });
-
-    this.emit('player_rejoined', { player, coins });
-    this.emit('players_updated', this.players);
-    this.emit('state_updated', this.getSnapshot());
-
     return true;
   }
 
@@ -1000,6 +1029,8 @@ class GameState extends EventEmitter {
     this.roundNumber++;
     this.chosenPlayer = null;
     this.targetPlayer = null;
+    this.targetPlayer2 = null;
+    this.savedTargets = new Set();
     this.wheelResult = null;
     this.stopTimer();
 
@@ -1028,6 +1059,8 @@ class GameState extends EventEmitter {
     this.stopTimer();
     this.state = GameStates.READY;
     this.targetPlayer = null;
+    this.targetPlayer2 = null;
+    this.savedTargets = new Set();
     this.persist();
     this.logActivity('ELIMINATION_CANCELLED', 'قام المدير بإلغاء عملية الإقصاء يدوياً');
     this.emit('state_updated', this.getSnapshot());
@@ -1175,6 +1208,8 @@ class GameState extends EventEmitter {
     this.roundNumber = 1;
     this.chosenPlayer = null;
     this.targetPlayer = null;
+    this.targetPlayer2 = null;
+    this.savedTargets = new Set();
     this.wheelResult = null;
     this.winner = null;
     this.challenger = null;
@@ -1207,7 +1242,7 @@ class GameState extends EventEmitter {
     );
 
     // 1) الدفاع عن النفس: فقط اللاعب المستهدف يمكنه الدفاع وقت الخطر
-    if (state === 'DEFENDING' && this.targetPlayer && matches(gifts.defense)) {
+    if (state === 'DEFENDING' && this.targetPlayer && matches(gifts.defense) && gifts.defense?.enabled !== false) {
       const handled = this.handleDefenseGift({
         userId: giftEvent.userId,
         uniqueId: giftEvent.uniqueId,
@@ -1221,7 +1256,7 @@ class GameState extends EventEmitter {
     }
 
     // 2) حسم الجولة النهائية
-    if (state === 'FINAL_ROUND' && matches(gifts.finalRound)) {
+    if (state === 'FINAL_ROUND' && matches(gifts.finalRound) && gifts.finalRound?.enabled !== false) {
       const handled = this.handleFinalRoundGift({
         userId: giftEvent.userId,
         uniqueId: giftEvent.uniqueId,
@@ -1235,7 +1270,7 @@ class GameState extends EventEmitter {
     }
 
     // 3) تحدي الفائز بعد انتهاء اللعبة
-    if (state === 'FINISHED' && this.winner && matches(gifts.winnerChallenge)) {
+    if (state === 'FINISHED' && this.winner && matches(gifts.winnerChallenge) && gifts.winnerChallenge?.enabled !== false) {
       const challenger = player || {
         id: giftEvent.userId,
         nickname: giftEvent.nickname,
@@ -1248,7 +1283,7 @@ class GameState extends EventEmitter {
     }
 
     // 4) عودة اللاعب المستبعد
-    if (player && player.status === 'eliminated' && matches(gifts.rejoin)) {
+    if (player && player.status === 'eliminated' && matches(gifts.rejoin) && gifts.rejoin?.enabled !== false) {
       const handled = this.handleRejoin({
         userId: giftEvent.userId,
         uniqueId: giftEvent.uniqueId,
@@ -1263,7 +1298,7 @@ class GameState extends EventEmitter {
     }
 
     // 5) الحصانة / الدرع
-    if (matches(gifts.shield)) {
+    if (matches(gifts.shield) && gifts.shield?.enabled !== false) {
       const handled = this.handleShieldGift({
         userId: giftEvent.userId,
         uniqueId: giftEvent.uniqueId,
@@ -1276,7 +1311,7 @@ class GameState extends EventEmitter {
     }
 
     // 6) المساعدة / الإنقاذ
-    if (matches(gifts.help)) {
+    if (matches(gifts.help) && gifts.help?.enabled !== false) {
       return !!this.handleHelp({
         helperUserId: giftEvent.userId,
         helperName: giftEvent.nickname,
@@ -1298,6 +1333,7 @@ class GameState extends EventEmitter {
       settings: this.getPublicSettings(),
       chosenPlayer: this.chosenPlayer,
       targetPlayer: this.targetPlayer,
+      targetPlayer2: this.targetPlayer2,
       wheelResult: this.wheelResult,
       winner: this.winner,
       challenger: this.challenger,

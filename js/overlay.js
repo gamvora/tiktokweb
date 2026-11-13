@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
         applyWheelConfigFromSnapshot();
         renderHeader();
         updateGiftsLegend();
+        updateGiftTicker();
       } else if (data.type === 'tiktok_status') {
         updateTikTokBadge(data.status);
       } else if (data.type === 'game_reset') {
@@ -640,6 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderGiftConfigTab();
       renderHeader();
       updateGiftsLegend();
+      updateGiftTicker();
     });
 
     socket.on('roulette_spin_started', (result) => {
@@ -653,11 +655,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('player_selected_turn', ({ chosenPlayer }) => showTurnModal(chosenPlayer));
 
-    socket.on('target_selected', ({ selector, target }) => {
+    socket.on('first_target_selected', ({ selector, target }) => {
+      // Shielded selector: keep modal open for second pick
+      if (window.soundEngine) window.soundEngine.siren();
+      // mark first target in the grid
+      if (tsPlayerGrid) {
+        const card = tsPlayerGrid.querySelector(`[data-player-num="${target.playerNumber}"]`);
+        if (card) { card.classList.add('is-selected-first'); card.style.opacity = '0.5'; }
+      }
+      setBanner(`🎯 ${selector.nickname} اختار ${target.nickname} — اختر الهدف الثاني (حصانة: هدفان)`);
+    });
+
+    socket.on('target_selected', ({ selector, target, target2 }) => {
       hideAllModals();
       if (window.soundEngine) window.soundEngine.siren();
-      showConfrontationModal(selector, target);
+      if (target2) {
+        showConfrontationModal(selector, target, target2);
+      } else {
+        showConfrontationModal(selector, target);
+      }
       if (window.__fx3d) window.__fx3d('target_selected', { selector, target });
+      if (target2 && window.__fx3d) window.__fx3d('target_selected', { selector, target: target2 });
     });
 
     socket.on('timer_tick', ({ remaining, type }) => {
@@ -1211,12 +1229,13 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
     const oneSet = cats.map(c => {
       const conf = gifts[c.key];
+      if (conf && conf.enabled === false) return '';
       const info = getGiftInfo(conf?.giftId || conf?.giftName || 'rose');
       const img = info.image;
       const name = conf?.giftName || info.nameAr;
       const coins = conf?.minCoins || info.coins || 1;
       return `<div class="ticker-item"><img src="${img}" alt=""><span class="ticker-name">${name}</span><span class="ticker-coins">${coins} عملة</span><span class="ticker-desc">${c.label} — ${c.desc}</span></div>`;
-    }).join('');
+    }).filter(Boolean).join('');
     // Build a set wide enough to fill the screen, then duplicate once for seamless loop
     let set = oneSet;
     for (let i = 0; i < 3; i++) set += oneSet;
@@ -1524,14 +1543,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function showConfrontationModal(selector, target) {
+  function showConfrontationModal(selector, target, target2) {
     if (!confrontationModal) return;
     selectorAvatar.src = selector.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${selector.playerNumber}`;
     selectorName.textContent = selector.nickname;
     selectorNum.textContent = `#${selector.playerNumber}`;
-    targetAvatar.src = target.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${target.playerNumber}`;
-    targetName.textContent = target.nickname;
-    targetNum.textContent = `#${target.playerNumber}`;
+    if (target2) {
+      targetAvatar.src = target.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${target.playerNumber}`;
+      targetName.textContent = `${target.nickname} + ${target2.nickname}`;
+      targetNum.textContent = `#${target.playerNumber} & #${target2.playerNumber}`;
+    } else {
+      targetAvatar.src = target.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${target.playerNumber}`;
+      targetName.textContent = target.nickname;
+      targetNum.textContent = `#${target.playerNumber}`;
+    }
 
     const defGiftConf = currentSnapshot?.settings?.gifts?.defense;
     const defGiftInfo = getGiftInfo(defGiftConf?.giftId || defGiftConf?.giftName || 'rose');
@@ -2244,6 +2269,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (bc) bc.postMessage({ type: 'settings_updated', settings: currentSnapshot?.settings });
       }
       alert('تم حفظ الإعدادات! ✅');
+      if (typeof updateGiftTicker === "function") updateGiftTicker();
     });
   }
 
