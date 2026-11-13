@@ -1480,7 +1480,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       return `
-        <div class="${cardClass}" data-player-num="${p.playerNumber}" ${!isSelf && !isImmune ? `onclick="window.selectTargetPlayer(${p.playerNumber})"` : ''}>
+        <div class="${cardClass}" data-player-num="${p.playerNumber}" ${!isSelf ? `onclick="window.selectTargetPlayer(${p.playerNumber})"` : ''}>
           <div class="ts-card-avatar-wrap">
             <img class="ts-card-avatar" src="${p.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.playerNumber}`}" alt="" onerror="this.src='assets/gifts/rose.png'">
             <div class="ts-card-num">#${p.playerNumber}</div>

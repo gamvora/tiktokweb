@@ -831,7 +831,7 @@ class GameState extends EventEmitter {
         return;
       }
       const eligible = this.getActivePlayers().filter(p =>
-        p.id !== this.chosenPlayer.id && !p.hasShield && p.status !== 'immune'
+        p.id !== this.chosenPlayer.id && p.status !== 'eliminated'
       );
       if (eligible.length > 0) {
         const randomTarget = eligible[Math.floor(Math.random() * eligible.length)];
