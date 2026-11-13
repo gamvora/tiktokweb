@@ -707,6 +707,14 @@ class GameState extends EventEmitter {
       return { success: false, reason: 'هذا اللاعب تم إقصاؤه بالفعل' };
     }
 
+    // Prevent selecting the same target twice
+    if (this.targetPlayer && target.id === this.targetPlayer.id) {
+      return { success: false, reason: 'تم اختياره مسبقاً' };
+    }
+    if (this.targetPlayer2 && target.id === this.targetPlayer2.id) {
+      return { success: false, reason: 'تم اختياره مسبقاً' };
+    }
+
     // Shield acts as hearts: allow targeting shielded players
     // (shield is consumed if they fail to defend)
 
