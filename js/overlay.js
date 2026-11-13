@@ -1475,8 +1475,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cardClass += ' is-self';
         badge = `<span class="ts-card-badge" style="background:rgba(255,255,255,0.1);color:#cbd5e1;">صاحب القرار ⭐</span>`;
       } else if (isImmune) {
-        cardClass += ' is-immune';
-        badge = `<span class="ts-card-badge immune-badge">محمي بالدرع 🛡️</span>`;
+        badge = `<span class="ts-card-badge immune-badge">🛡️ حصانة</span>`;
       }
 
       return `

@@ -738,6 +738,17 @@ class GameState extends EventEmitter {
       });
       this.emit('state_updated', this.getSnapshot());
 
+      // If all targets shielded, skip defense countdown/UI
+      const allShielded = [this.targetPlayer, target].every(t => t && t.hasShield);
+      if (allShielded) {
+        if (this._defenseTimeout) clearTimeout(this._defenseTimeout);
+        this._defenseTimeout = setTimeout(() => {
+          if (!this.targetPlayer || this.state !== GameStates.ELIMINATION_WARNING) return;
+          this.handleDefenseTimeout();
+        }, 800);
+        return { success: true, target };
+      }
+
       const defenseSeconds = this.settings.timers.defenseDuration || 20;
       if (this._defenseTimeout) clearTimeout(this._defenseTimeout);
       this._defenseTimeout = setTimeout(() => {
@@ -782,6 +793,16 @@ class GameState extends EventEmitter {
       target: this.targetPlayer
     });
     this.emit('state_updated', this.getSnapshot());
+
+    // If target has shield, skip defense countdown/UI and resolve immediately
+    if (target.hasShield) {
+      if (this._defenseTimeout) clearTimeout(this._defenseTimeout);
+      this._defenseTimeout = setTimeout(() => {
+        if (!this.targetPlayer || this.state !== GameStates.ELIMINATION_WARNING) return;
+        this.handleDefenseTimeout();
+      }, 800);
+      return { success: true, target };
+    }
 
     // Transition to DEFENDING countdown
     const defenseSeconds = this.settings.timers.defenseDuration || 20;
