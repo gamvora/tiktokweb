@@ -58,3 +58,7 @@ src = src.replace(old_scripts, new_scripts)
 
 io.open('game3d.html', 'w', encoding='utf-8', newline='\n').write(src)
 print('game3d.html written, len =', len(src))
+
+import shutil
+shutil.copyfile('index.html', 'overlay.html')
+print('overlay.html synced')
